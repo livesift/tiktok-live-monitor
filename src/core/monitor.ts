@@ -1,11 +1,7 @@
 import { normalizeMonitorError, MonitorError } from "./errors.js";
-import type {
-  LiveMonitor,
-  MonitorConnection,
-  MonitorEventHandler,
-  MonitorState,
-  MonitorTransport,
-} from "./types.js";
+import type { LiveProvider, LiveSession, ProviderEventHandler } from "./provider.js";
+
+export type MonitorState = "idle" | "connecting" | "connected" | "disconnected";
 
 export interface SignalSource {
   once(signal: NodeJS.Signals, listener: () => void): unknown;
@@ -17,26 +13,32 @@ export interface SignalHandlerOptions {
   onExit?: (code: number) => void;
 }
 
-export class MonitorController implements LiveMonitor {
+export class MonitorController {
   private currentState: MonitorState = "idle";
-  private currentRoomId: string | undefined;
-  private connectPromise: Promise<MonitorConnection> | undefined;
+  private currentSession: LiveSession | undefined;
+  private connectPromise: Promise<LiveSession> | undefined;
   private disconnectPromise: Promise<void> | undefined;
   private lifecycleVersion = 0;
 
-  constructor(private readonly transport: MonitorTransport) {}
+  constructor(private readonly provider: LiveProvider) {}
 
   get state(): MonitorState {
     return this.currentState;
   }
 
-  get roomId(): string | undefined {
-    return this.currentRoomId;
+  get session(): LiveSession | undefined {
+    return this.currentSession;
   }
 
-  connect(): Promise<MonitorConnection> {
-    if (this.currentState === "connected" && this.currentRoomId !== undefined) {
-      return Promise.resolve({ roomId: this.currentRoomId });
+  connect(username: string): Promise<LiveSession> {
+    if (this.currentState === "connected" && this.currentSession !== undefined) {
+      if (this.currentSession.username === username.replace(/^@/, "").trim()) {
+        return Promise.resolve(this.currentSession);
+      }
+
+      return Promise.reject(
+        new MonitorError("CONNECTION_FAILED", "A different creator is already connected."),
+      );
     }
 
     if (this.connectPromise !== undefined) {
@@ -46,31 +48,31 @@ export class MonitorController implements LiveMonitor {
     const version = ++this.lifecycleVersion;
     this.currentState = "connecting";
 
-    const promise = this.transport
-      .connect()
-      .then((connection) => {
+    const promise = this.provider
+      .connect(username)
+      .then((session) => {
         if (version !== this.lifecycleVersion || this.currentState === "disconnected") {
-          void this.transport.disconnect().catch(() => undefined);
+          void this.provider.disconnect().catch(() => undefined);
           throw new MonitorError(
             "CONNECTION_CANCELLED",
             "The monitoring connection was cancelled before it was established.",
           );
         }
 
-        if (connection.roomId.trim() === "") {
+        if (session.roomId.trim() === "") {
           throw new MonitorError(
             "CONNECTION_FAILED",
-            "TikTok did not return a valid live room ID.",
+            "The provider did not return a valid room ID.",
           );
         }
 
-        this.currentRoomId = connection.roomId;
+        this.currentSession = session;
         this.currentState = "connected";
-        return connection;
+        return session;
       })
       .catch((error: unknown) => {
         if (version === this.lifecycleVersion) {
-          this.currentRoomId = undefined;
+          this.currentSession = undefined;
           this.currentState = "disconnected";
         }
         throw normalizeMonitorError(error);
@@ -93,14 +95,14 @@ export class MonitorController implements LiveMonitor {
     const shouldDisconnect =
       this.currentState === "connecting" || this.currentState === "connected";
     this.lifecycleVersion += 1;
-    this.currentRoomId = undefined;
+    this.currentSession = undefined;
     this.currentState = "disconnected";
 
     if (!shouldDisconnect) {
       return Promise.resolve();
     }
 
-    const promise = this.transport
+    const promise = this.provider
       .disconnect()
       .catch((error: unknown) => {
         throw normalizeMonitorError(error);
@@ -115,13 +117,13 @@ export class MonitorController implements LiveMonitor {
     return promise;
   }
 
-  onEvent(handler: MonitorEventHandler): () => void {
-    return this.transport.onEvent(handler);
+  onEvent(handler: ProviderEventHandler): void {
+    this.provider.onEvent(handler);
   }
 }
 
 export function installSignalHandlers(
-  monitor: LiveMonitor,
+  monitor: MonitorController,
   options: SignalHandlerOptions = {},
 ): () => void {
   const source = options.source ?? process;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { UserOfflineError, WebcastEvent } from "tiktok-live-connector";
-import { TikTokLiveTransport } from "../src/adapters/tiktok/client.js";
+import { TikTokLiveConnectorProvider } from "../src/providers/tiktok-live-connector/provider.js";
 
 class FakeTikTokClient {
   readonly handlers = new Map<string, Set<(payload: unknown) => void>>();
@@ -24,13 +24,16 @@ class FakeTikTokClient {
   }
 }
 
-describe("TikTokLiveTransport", () => {
+describe("TikTokLiveConnectorProvider", () => {
   it("normalizes the username before creating the provider client", async () => {
     const client = new FakeTikTokClient();
     const clientFactory = vi.fn(() => client);
-    const transport = new TikTokLiveTransport("@creator", { clientFactory });
+    const provider = new TikTokLiveConnectorProvider({ clientFactory });
 
-    await expect(transport.connect()).resolves.toEqual({ roomId: "room-456" });
+    await expect(provider.connect("@creator")).resolves.toEqual({
+      username: "creator",
+      roomId: "room-456",
+    });
     expect(clientFactory).toHaveBeenCalledWith("creator");
     expect(client.connect).toHaveBeenCalledOnce();
   });
@@ -38,27 +41,26 @@ describe("TikTokLiveTransport", () => {
   it("maps the provider offline error to a domain error", async () => {
     const client = new FakeTikTokClient();
     client.connect.mockRejectedValueOnce(new UserOfflineError("offline"));
-    const transport = new TikTokLiveTransport("creator", {
+    const provider = new TikTokLiveConnectorProvider({
       clientFactory: () => client,
     });
 
-    await expect(transport.connect()).rejects.toMatchObject({
+    await expect(provider.connect("creator")).rejects.toMatchObject({
       code: "OFFLINE",
       message: "@creator is currently offline.",
     });
   });
 
-  it("converts provider events to the provider-independent event shape", () => {
+  it("converts provider events to the provider-independent event shape", async () => {
     const client = new FakeTikTokClient();
-    const transport = new TikTokLiveTransport("creator", {
+    const provider = new TikTokLiveConnectorProvider({
       clientFactory: () => client,
     });
     const handler = vi.fn();
 
-    const removeHandler = transport.onEvent(handler);
+    provider.onEvent(handler);
+    await provider.connect("creator");
     client.emit(WebcastEvent.CHAT, { comment: "hello" });
-    removeHandler();
-    client.emit(WebcastEvent.CHAT, { comment: "ignored" });
 
     expect(handler).toHaveBeenCalledOnce();
     expect(handler).toHaveBeenCalledWith({

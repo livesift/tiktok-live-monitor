@@ -35,7 +35,7 @@ npm run build             # 构建 Node.js 发布产物
 当前初始化工作为后续功能提供基础结构：
 
 - Node.js 20+ 和 TypeScript 工程配置
-- `src/cli`、`src/core`、`src/adapters/tiktok`、`src/events` 模块边界
+- `src/cli`、`src/core`、`src/providers/tiktok-live-connector`、`src/events` 模块边界
 - Vitest、ESLint、Prettier、tsx 和 tsup 开发工具
 - TikTok LIVE 连接生命周期与用户名校验的实现入口
 
@@ -43,7 +43,7 @@ npm run build             # 构建 Node.js 发布产物
 
 ## 开发约定
 
-第三方 TikTok 客户端只能在 `src/adapters/tiktok` 中使用。核心监控接口不暴露第三方库的类型，避免 provider 变更影响 CLI 和后续事件处理模块。
+第三方 TikTok 客户端只能在 `src/providers/tiktok-live-connector` 中使用。核心监控接口不暴露第三方库的类型，避免 provider 变更影响 CLI 和后续事件处理模块。
 
 ## TikTok 连接方式
 

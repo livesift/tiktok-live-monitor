@@ -35,7 +35,7 @@ npm run build             # Build the Node.js distribution
 The initial project setup provides the foundation for the next iterations:
 
 - Node.js 20+ and TypeScript project configuration
-- Module boundaries for `src/cli`, `src/core`, `src/adapters/tiktok`, and `src/events`
+- Module boundaries for `src/cli`, `src/core`, `src/providers/tiktok-live-connector`, and `src/events`
 - Vitest, ESLint, Prettier, tsx, and tsup development tooling
 - An implementation boundary for TikTok LIVE connection lifecycle and username validation
 
@@ -43,7 +43,7 @@ Comments, gifts, likes, viewer counts, JSONL export, and Webhook output will be 
 
 ## Development conventions
 
-Third-party TikTok clients must only be used inside `src/adapters/tiktok`. The core monitoring interface does not expose provider-specific types, so a provider change will not affect the CLI or future event processing modules.
+Third-party TikTok clients must only be used inside `src/providers/tiktok-live-connector`. The core monitoring interface does not expose provider-specific types, so a provider change will not affect the CLI or future event processing modules.
 
 ## TikTok connectivity
 
