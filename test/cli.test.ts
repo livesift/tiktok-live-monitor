@@ -70,6 +70,24 @@ describe("runCli", () => {
     expect(stderr.value()).toContain("Usage: tiktok-live-monitor <username>");
   });
 
+  it("rejects malformed usernames before starting a connection", async () => {
+    const provider = new FakeProvider();
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator name"], {
+      provider,
+      stdout: createWriter(),
+      stderr,
+      keepAlive: false,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(provider.connectCalls).toBe(0);
+    expect(stderr.value()).toContain(
+      "Username must be 1-24 letters, numbers, dots, underscores, or hyphens.",
+    );
+  });
+
   it("prints provider errors without a stack trace", async () => {
     const provider = new FakeProvider();
     provider.connectError = new MonitorError("OFFLINE", "@creator is currently offline.");

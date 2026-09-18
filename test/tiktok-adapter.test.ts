@@ -51,6 +51,19 @@ describe("TikTokLiveConnectorProvider", () => {
     });
   });
 
+  it("maps unknown provider failures to a readable connection error", async () => {
+    const client = new FakeTikTokClient();
+    client.connect.mockRejectedValueOnce(new Error("socket closed"));
+    const provider = new TikTokLiveConnectorProvider({
+      clientFactory: () => client,
+    });
+
+    await expect(provider.connect("creator")).rejects.toMatchObject({
+      code: "CONNECTION_FAILED",
+      message: "Unable to connect to @creator: socket closed",
+    });
+  });
+
   it("converts provider events to the provider-independent event shape", async () => {
     const client = new FakeTikTokClient();
     const provider = new TikTokLiveConnectorProvider({
