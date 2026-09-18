@@ -45,6 +45,15 @@ npm run build             # 构建 Node.js 发布产物
 
 第三方 TikTok 客户端只能在 `src/adapters/tiktok` 中使用。核心监控接口不暴露第三方库的类型，避免 provider 变更影响 CLI 和后续事件处理模块。
 
+## TikTok 连接方式
+
+TikTok Live Monitor 当前默认使用 TikTok-Live-Connector 作为 TikTok LIVE 数据 Provider。
+
+TikTok-Live-Connector 的 WebSocket 签名依赖第三方服务 Euler Stream。Euler Stream 提供免费 Community 套餐，但属于独立
+第三方服务，并具有自己的额度和服务条款。
+
+本项目通过 Provider 抽象隔离该依赖，后续可以增加其他 Provider 或自托管实现。
+
 ## 许可证
 
 本项目使用 Apache-2.0 License，详见 [LICENSE](./LICENSE)。

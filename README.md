@@ -45,6 +45,18 @@ Comments, gifts, likes, viewer counts, JSONL export, and Webhook output will be 
 
 Third-party TikTok clients must only be used inside `src/adapters/tiktok`. The core monitoring interface does not expose provider-specific types, so a provider change will not affect the CLI or future event processing modules.
 
+## TikTok connectivity
+
+TikTok Live Monitor currently uses TikTok-Live-Connector as its
+default TikTok LIVE provider.
+
+TikTok-Live-Connector uses Euler Stream for WebSocket signing.
+Euler Stream provides a free community tier, but it is an independent
+third-party service and may have its own limits and terms.
+
+The provider layer is intentionally abstracted so alternative or
+self-hosted implementations can be added in the future.
+
 ## License
 
 This project is licensed under the Apache-2.0 License. See [LICENSE](./LICENSE).
