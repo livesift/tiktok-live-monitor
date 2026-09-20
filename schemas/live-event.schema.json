@@ -1,0 +1,266 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:livesift:schema:live-event:v1",
+  "title": "LiveSift LiveEvent",
+  "description": "TikTok LIVE event envelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "platform",
+    "type",
+    "occurredAt",
+    "receivedAt",
+    "session",
+    "creator",
+    "data"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "const": "tiktok"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "session_started",
+        "session_ended",
+        "comment",
+        "gift",
+        "like",
+        "follow",
+        "share",
+        "viewer_count"
+      ]
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "receivedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "session": {
+      "$ref": "#/definitions/session"
+    },
+    "creator": {
+      "$ref": "#/definitions/creator"
+    },
+    "actor": {
+      "$ref": "#/definitions/actor"
+    },
+    "data": {
+      "type": "object"
+    },
+    "raw": {}
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "session_started"
+        },
+        "data": {
+          "$ref": "#/definitions/sessionData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "session_ended"
+        },
+        "data": {
+          "$ref": "#/definitions/sessionData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "comment"
+        },
+        "data": {
+          "$ref": "#/definitions/commentData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "gift"
+        },
+        "data": {
+          "$ref": "#/definitions/giftData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "like"
+        },
+        "data": {
+          "$ref": "#/definitions/likeData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "follow"
+        },
+        "data": {
+          "$ref": "#/definitions/extensionData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "share"
+        },
+        "data": {
+          "$ref": "#/definitions/extensionData"
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "viewer_count"
+        },
+        "data": {
+          "$ref": "#/definitions/viewerCountData"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roomId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "creator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["username"],
+      "properties": {
+        "username": {
+          "type": "string",
+          "minLength": 1
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nickname": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "username": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nickname": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "sessionData": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "extensionData": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "commentData": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["text"],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "giftData": {
+      "type": "object",
+      "additionalProperties": true,
+      "minProperties": 1,
+      "properties": {
+        "giftId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "giftName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "diamondCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "likeData": {
+      "type": "object",
+      "additionalProperties": true,
+      "minProperties": 1,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "viewerCountData": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["viewerCount"],
+      "properties": {
+        "viewerCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

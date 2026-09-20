@@ -1,0 +1,20 @@
+{
+  "id": "evt-like-001",
+  "platform": "tiktok",
+  "type": "like",
+  "occurredAt": "2026-09-20T01:04:00Z",
+  "receivedAt": "2026-09-20T01:04:01Z",
+  "session": {
+    "id": "session-20260920-010000"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "actor": {
+    "username": "viewer_two"
+  },
+  "data": {
+    "count": 10,
+    "total": 48219
+  }
+}

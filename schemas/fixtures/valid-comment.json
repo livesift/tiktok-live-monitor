@@ -1,0 +1,24 @@
+{
+  "id": "evt-comment-001",
+  "platform": "tiktok",
+  "type": "comment",
+  "occurredAt": "2026-09-20T01:02:03Z",
+  "receivedAt": "2026-09-20T01:02:04Z",
+  "session": {
+    "id": "session-20260920-010000",
+    "roomId": "room-123"
+  },
+  "creator": {
+    "username": "creator",
+    "userId": "creator-001",
+    "nickname": "Creator"
+  },
+  "actor": {
+    "userId": "user-001",
+    "username": "viewer_one",
+    "nickname": "Viewer One"
+  },
+  "data": {
+    "text": "How much is this?"
+  }
+}

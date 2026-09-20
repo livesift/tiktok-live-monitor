@@ -1,0 +1,16 @@
+{
+  "id": "evt-viewer-count-invalid-001",
+  "platform": "tiktok",
+  "type": "viewer_count",
+  "occurredAt": "2026-09-20T01:05:00Z",
+  "receivedAt": "2026-09-20T01:05:01Z",
+  "session": {
+    "id": "session-20260920-010000"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "data": {
+    "viewerCount": -1
+  }
+}

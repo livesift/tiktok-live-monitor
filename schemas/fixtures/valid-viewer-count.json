@@ -1,0 +1,17 @@
+{
+  "id": "evt-viewer-count-001",
+  "platform": "tiktok",
+  "type": "viewer_count",
+  "occurredAt": "2026-09-20T01:05:00Z",
+  "receivedAt": "2026-09-20T01:05:01Z",
+  "session": {
+    "id": "session-20260920-010000",
+    "roomId": "room-123"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "data": {
+    "viewerCount": 1842
+  }
+}

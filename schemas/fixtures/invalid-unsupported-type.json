@@ -1,0 +1,14 @@
+{
+  "id": "evt-unsupported-001",
+  "platform": "tiktok",
+  "type": "room_rank",
+  "occurredAt": "2026-09-20T01:02:03Z",
+  "receivedAt": "2026-09-20T01:02:04Z",
+  "session": {
+    "id": "session-20260920-010000"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "data": {}
+}

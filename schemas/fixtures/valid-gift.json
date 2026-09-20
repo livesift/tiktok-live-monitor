@@ -1,0 +1,23 @@
+{
+  "id": "evt-gift-001",
+  "platform": "tiktok",
+  "type": "gift",
+  "occurredAt": "2026-09-20T01:03:00Z",
+  "receivedAt": "2026-09-20T01:03:01Z",
+  "session": {
+    "id": "session-20260920-010000",
+    "roomId": "room-123"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "actor": {
+    "username": "supporter"
+  },
+  "data": {
+    "giftId": "123",
+    "giftName": "Rose",
+    "count": 1,
+    "diamondCount": 1
+  }
+}

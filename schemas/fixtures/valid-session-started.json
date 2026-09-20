@@ -1,0 +1,15 @@
+{
+  "id": "evt-session-started-001",
+  "platform": "tiktok",
+  "type": "session_started",
+  "occurredAt": "2026-09-20T01:00:00Z",
+  "receivedAt": "2026-09-20T01:00:00Z",
+  "session": {
+    "id": "session-20260920-010000",
+    "roomId": "room-123"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "data": {}
+}

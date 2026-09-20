@@ -1,0 +1,41 @@
+{
+  "schema": "../live-event.schema.json",
+  "fixtures": [
+    {
+      "file": "valid-comment.json",
+      "valid": true
+    },
+    {
+      "file": "valid-gift.json",
+      "valid": true
+    },
+    {
+      "file": "valid-like.json",
+      "valid": true
+    },
+    {
+      "file": "valid-viewer-count.json",
+      "valid": true
+    },
+    {
+      "file": "valid-session-started.json",
+      "valid": true
+    },
+    {
+      "file": "valid-session-ended.json",
+      "valid": true
+    },
+    {
+      "file": "invalid-missing-id.json",
+      "valid": false
+    },
+    {
+      "file": "invalid-unsupported-type.json",
+      "valid": false
+    },
+    {
+      "file": "invalid-negative-viewer-count.json",
+      "valid": false
+    }
+  ]
+}
