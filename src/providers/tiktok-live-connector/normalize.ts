@@ -1,6 +1,8 @@
 import { InvalidUniqueIdError, UserOfflineError, WebcastEvent } from "tiktok-live-connector";
 import { MonitorError } from "../../core/errors.js";
-import type { LiveSession, ProviderEvent } from "../../core/provider.js";
+import type { LiveSession } from "../../core/provider.js";
+import { normalizeTikTokEvent, type LiveEventContext } from "../../events/normalize.js";
+import type { LiveEvent } from "../../events/types.js";
 
 export function getWebcastEventNames(): string[] {
   return Object.values(WebcastEvent).map((event) => String(event));
@@ -16,8 +18,12 @@ export function normalizeLiveSession(username: string, roomId: string | number):
   return { username, roomId: normalizedRoomId };
 }
 
-export function normalizeProviderEvent(type: string, payload: unknown): ProviderEvent {
-  return { type, payload };
+export function normalizeProviderEvent(
+  type: string,
+  payload: unknown,
+  context: LiveEventContext,
+): LiveEvent | undefined {
+  return normalizeTikTokEvent(type, payload, context);
 }
 
 function getErrorMessage(error: unknown): string {

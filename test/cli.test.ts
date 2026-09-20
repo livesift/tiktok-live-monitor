@@ -1,8 +1,9 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { runCli } from "../src/cli/index.js";
+import { formatLiveEvent, runCli } from "../src/cli/index.js";
 import { MonitorError } from "../src/core/errors.js";
 import type { LiveProvider, LiveSession, ProviderEventHandler } from "../src/core/provider.js";
+import type { LiveEvent } from "../src/events/types.js";
 
 class FakeProvider implements LiveProvider {
   connectCalls = 0;
@@ -33,6 +34,49 @@ function createWriter() {
 }
 
 describe("runCli", () => {
+  it("formats normalized comment, gift, like, and viewer summaries", () => {
+    const base = {
+      id: "event-cli",
+      platform: "tiktok" as const,
+      occurredAt: "2026-09-20T01:02:03Z",
+      receivedAt: "2026-09-20T01:02:04Z",
+      session: { id: "session-cli" },
+      creator: { username: "creator" },
+    };
+
+    expect(
+      formatLiveEvent({
+        ...base,
+        type: "comment",
+        actor: { username: "viewer" },
+        data: { text: "hello" },
+      } satisfies LiveEvent<"comment">),
+    ).toBe("[01:02:03] COMMENT viewer: hello\n");
+    expect(
+      formatLiveEvent({
+        ...base,
+        type: "gift",
+        actor: { username: "supporter" },
+        data: { giftName: "Rose", count: 1 },
+      } satisfies LiveEvent<"gift">),
+    ).toBe("[01:02:03] GIFT supporter: Rose x1\n");
+    expect(
+      formatLiveEvent({
+        ...base,
+        type: "like",
+        actor: { username: "viewer" },
+        data: { count: 10, total: 100 },
+      } satisfies LiveEvent<"like">),
+    ).toBe("[01:02:03] LIKES viewer: +10 (total 100)\n");
+    expect(
+      formatLiveEvent({
+        ...base,
+        type: "viewer_count",
+        data: { viewerCount: 1842 },
+      } satisfies LiveEvent<"viewer_count">),
+    ).toBe("[01:02:03] VIEWERS 1,842\n");
+  });
+
   it("connects with a normalized username and prints the live session", async () => {
     const provider = new FakeProvider();
     const stdout = createWriter();

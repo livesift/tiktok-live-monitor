@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { TikTokLiveConnection } from "tiktok-live-connector";
 import { normalizeCreatorUsername } from "../../core/username.js";
 import type { LiveProvider, LiveSession, ProviderEventHandler } from "../../core/provider.js";
+import type { LiveEventContext } from "../../events/normalize.js";
 import {
   getWebcastEventNames,
   normalizeLiveSession,
@@ -36,6 +38,7 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
   private readonly handlers = new Set<ProviderEventHandler>();
   private client: TikTokConnectionLike | undefined;
   private username: string | undefined;
+  private liveEventContext: LiveEventContext | undefined;
   private clientListenerCleanups: Array<() => void> = [];
 
   constructor(options: TikTokLiveConnectorProviderOptions = {}) {
@@ -55,12 +58,24 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
 
     try {
       const state = await client.connect();
+      const session = normalizeLiveSession(normalizedUsername, state.roomId);
+      this.liveEventContext = {
+        session: {
+          id: `session-${randomUUID()}`,
+          roomId: session.roomId,
+        },
+        creator: {
+          username: session.username,
+        },
+      };
       this.attachClientEvents(client);
-      return normalizeLiveSession(normalizedUsername, state.roomId);
+      this.emitNormalizedEvent("sessionStarted", undefined);
+      return session;
     } catch (error) {
       this.detachClientEvents();
       this.client = undefined;
       this.username = undefined;
+      this.liveEventContext = undefined;
       throw normalizeTikTokError(error, normalizedUsername);
     }
   }
@@ -68,9 +83,16 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
   async disconnect(): Promise<void> {
     const client = this.client;
     const username = this.username ?? "creator";
+    const hadSession = client !== undefined && this.liveEventContext !== undefined;
+    if (hadSession) {
+      this.emitNormalizedEvent("streamEnd", {
+        common: { createTime: Date.now().toString() },
+      });
+    }
     this.detachClientEvents();
     this.client = undefined;
     this.username = undefined;
+    this.liveEventContext = undefined;
 
     if (client === undefined) {
       return;
@@ -92,10 +114,7 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
 
     for (const eventName of this.eventNames) {
       const listener = (payload: unknown): void => {
-        const event = normalizeProviderEvent(eventName, payload);
-        for (const handler of this.handlers) {
-          handler(event);
-        }
+        this.emitNormalizedEvent(eventName, payload);
       };
 
       client.on(eventName, listener);
@@ -103,6 +122,21 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
         client.removeListener?.(eventName, listener);
         client.off?.(eventName, listener);
       });
+    }
+  }
+
+  private emitNormalizedEvent(type: string, payload: unknown): void {
+    if (this.liveEventContext === undefined) {
+      return;
+    }
+
+    const event = normalizeProviderEvent(type, payload, this.liveEventContext);
+    if (event === undefined) {
+      return;
+    }
+
+    for (const handler of this.handlers) {
+      handler(event);
     }
   }
 

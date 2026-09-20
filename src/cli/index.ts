@@ -7,6 +7,11 @@ import { MonitorError, normalizeMonitorError } from "../core/errors.js";
 import { installSignalHandlers, MonitorController, type SignalSource } from "../core/monitor.js";
 import type { LiveProvider } from "../core/provider.js";
 import { normalizeCreatorUsername } from "../core/username.js";
+import type { LiveEvent } from "../events/types.js";
+import {
+  gatewayUrlFromEnvironment,
+  GatewayEventClient,
+} from "../events/gateway.js";
 import { TikTokLiveConnectorProvider } from "../providers/tiktok-live-connector/provider.js";
 
 export interface CliWriter {
@@ -19,9 +24,52 @@ export interface CliOptions {
   stderr?: CliWriter;
   signalSource?: SignalSource;
   keepAlive?: boolean;
+  gatewayUrl?: string;
+  gatewayFetch?: typeof fetch;
 }
 
 const usage = "Usage: tiktok-live-monitor <username>";
+
+function actorLabel(event: LiveEvent): string {
+  return (
+    event.actor?.username ??
+    event.actor?.nickname ??
+    event.actor?.userId ??
+    "unknown"
+  );
+}
+
+function eventTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "--:--:--" : date.toISOString().slice(11, 19);
+}
+
+function count(value: number | undefined): string {
+  return value === undefined ? "-" : value.toLocaleString("en-US");
+}
+
+export function formatLiveEvent(event: LiveEvent): string {
+  const prefix = `[${eventTime(event.occurredAt)}]`;
+
+  switch (event.type) {
+    case "session_started":
+      return `${prefix} SESSION STARTED\n`;
+    case "session_ended":
+      return `${prefix} SESSION ENDED\n`;
+    case "comment":
+      return `${prefix} COMMENT ${actorLabel(event)}: ${event.data.text}\n`;
+    case "gift":
+      return `${prefix} GIFT ${actorLabel(event)}: ${event.data.giftName ?? "Gift"} x${count(event.data.count)}\n`;
+    case "like":
+      return `${prefix} LIKES ${actorLabel(event)}: +${count(event.data.count)} (total ${count(event.data.total)})\n`;
+    case "viewer_count":
+      return `${prefix} VIEWERS ${event.data.viewerCount.toLocaleString("en-US")}\n`;
+    case "follow":
+      return `${prefix} FOLLOW ${actorLabel(event)}\n`;
+    case "share":
+      return `${prefix} SHARE ${actorLabel(event)}\n`;
+  }
+}
 
 export function parseCreatorUsername(args: readonly string[]): string {
   const errors: string[] = [];
@@ -77,8 +125,40 @@ export async function runCli(
   }
 
   const provider = options.provider ?? new TikTokLiveConnectorProvider();
+  const gatewayUrl = options.gatewayUrl ?? gatewayUrlFromEnvironment();
+  let gatewayClient: GatewayEventClient | undefined;
+  if (gatewayUrl !== undefined) {
+    try {
+      gatewayClient = new GatewayEventClient(gatewayUrl, { fetchImpl: options.gatewayFetch });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid Gateway URL.";
+      stderr.write(`Invalid Gateway URL: ${message}\n`);
+      return 1;
+    }
+  }
+
+  const pendingGatewayEvents = new Set<Promise<void>>();
+  const flushGatewayEvents = async (): Promise<void> => {
+    await Promise.all([...pendingGatewayEvents]);
+  };
+  const sendToGateway = (event: LiveEvent): void => {
+    if (gatewayClient === undefined) {
+      return;
+    }
+
+    const delivery = gatewayClient.send(event).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown Gateway error.";
+      stderr.write(`${message}\n`);
+    });
+    pendingGatewayEvents.add(delivery);
+    void delivery.finally(() => pendingGatewayEvents.delete(delivery));
+  };
   const monitor = new MonitorController(provider);
   const keepAlive = options.keepAlive ?? true;
+  monitor.onEvent((event) => {
+    stdout.write(formatLiveEvent(event));
+    sendToGateway(event);
+  });
 
   stdout.write(`Connecting to @${username}...\n`);
 
@@ -103,16 +183,20 @@ export async function runCli(
     if (!keepAlive) {
       removeSignalHandlers();
       await monitor.disconnect();
+      await flushGatewayEvents();
       return 0;
     }
 
     const exitCode = await shutdown;
     removeSignalHandlers();
+    await monitor.disconnect();
+    await flushGatewayEvents();
     return exitCode;
   } catch (error) {
     removeSignalHandlers();
     stderr.write(`${normalizeMonitorError(error).message}\n`);
     await monitor.disconnect();
+    await flushGatewayEvents();
     return 1;
   }
 }

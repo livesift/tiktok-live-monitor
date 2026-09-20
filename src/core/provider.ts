@@ -1,12 +1,11 @@
+import type { LiveEvent } from "../events/types.js";
+
 export interface LiveSession {
   username: string;
   roomId: string;
 }
 
-export interface ProviderEvent {
-  type: string;
-  payload: unknown;
-}
+export type ProviderEvent = LiveEvent;
 
 export type ProviderEventHandler = (event: ProviderEvent) => void;
 

@@ -29,7 +29,16 @@ class FakeProvider implements LiveProvider {
 
   emit(): void {
     for (const handler of this.handlers) {
-      handler({ type: "test", payload: { ok: true } });
+      handler({
+        id: "event-test",
+        platform: "tiktok",
+        type: "comment",
+        occurredAt: "2026-09-20T01:02:03Z",
+        receivedAt: "2026-09-20T01:02:04Z",
+        session: { id: "session-test" },
+        creator: { username: "creator" },
+        data: { text: "test" },
+      });
     }
   }
 }

@@ -73,12 +73,65 @@ describe("TikTokLiveConnectorProvider", () => {
 
     provider.onEvent(handler);
     await provider.connect("creator");
-    client.emit(WebcastEvent.CHAT, { comment: "hello" });
+    handler.mockClear();
+    client.emit(WebcastEvent.CHAT, {
+      common: { createTime: "1726794123000" },
+      content: "hello",
+      user: { id: "user-1", displayId: "viewer", nickname: "Viewer" },
+    });
 
     expect(handler).toHaveBeenCalledOnce();
-    expect(handler).toHaveBeenCalledWith({
-      type: WebcastEvent.CHAT,
-      payload: { comment: "hello" },
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: "tiktok",
+        type: "comment",
+        occurredAt: "2024-09-20T01:02:03.000Z",
+        session: expect.objectContaining({ roomId: "room-456" }),
+        creator: { username: "creator" },
+        actor: { userId: "user-1", username: "viewer", nickname: "Viewer" },
+        data: { text: "hello" },
+        raw: expect.any(Object),
+      }),
+    );
+  });
+
+  it("ignores provider events that are outside the LiveEvent contract", async () => {
+    const client = new FakeTikTokClient();
+    const provider = new TikTokLiveConnectorProvider({
+      clientFactory: () => client,
     });
+    const handler = vi.fn();
+
+    provider.onEvent(handler);
+    await provider.connect("creator");
+    handler.mockClear();
+    client.emit(WebcastEvent.SYSTEM, { message: "unsupported" });
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("emits normalized session lifecycle events", async () => {
+    const client = new FakeTikTokClient();
+    const provider = new TikTokLiveConnectorProvider({
+      clientFactory: () => client,
+    });
+    const handler = vi.fn();
+
+    provider.onEvent(handler);
+    await provider.connect("creator");
+    await provider.disconnect();
+
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "session_started",
+        data: {},
+      }),
+    );
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "session_ended",
+        data: { reason: "stream_end" },
+      }),
+    );
   });
 });

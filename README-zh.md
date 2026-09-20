@@ -39,7 +39,8 @@ npm run build             # 构建 Node.js 发布产物
 - Vitest、ESLint、Prettier、tsx 和 tsup 开发工具
 - TikTok LIVE 连接生命周期与用户名校验的实现入口
 
-评论、礼物、点赞、观众数、JSONL 导出和 Webhook 会在后续迭代中加入。
+CLI 会输出连接状态以及支持的 TikTok 事件摘要。JSONL 导出和 Webhook
+仍属于后续迭代。
 
 ## 开发约定
 

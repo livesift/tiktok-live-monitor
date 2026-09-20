@@ -39,7 +39,8 @@ The initial project setup provides the foundation for the next iterations:
 - Vitest, ESLint, Prettier, tsx, and tsup development tooling
 - An implementation boundary for TikTok LIVE connection lifecycle and username validation
 
-Comments, gifts, likes, viewer counts, JSONL export, and Webhook output will be added in later iterations.
+The monitor reports connection state and readable summaries for supported TikTok events.
+JSONL export and Webhook output remain future work.
 
 ## Development conventions
 
