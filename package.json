@@ -4,15 +4,15 @@
   "description": "TikTok Live Monitor can also be used as a real-time TikTok LIVE tracker for chat, gifts, viewers and engagement events.",
   "type": "module",
   "bin": {
-    "tiktok-live-monitor": "dist/index.js"
+    "tiktok-live-monitor": "dist/cli/index.js"
   },
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts",
-    "build": "tsup src/index.ts --format esm --dts --clean",
-    "start": "node dist/index.js",
+    "build": "tsup --format esm --dts --clean",
+    "start": "node dist/cli/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

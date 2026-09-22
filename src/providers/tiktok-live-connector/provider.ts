@@ -1,8 +1,13 @@
-import { randomUUID } from "node:crypto";
 import { TikTokLiveConnection } from "tiktok-live-connector";
+import { SessionLifecycle, type SessionLifecycleOptions } from "../../core/session-lifecycle.js";
 import { normalizeCreatorUsername } from "../../core/username.js";
-import type { LiveProvider, LiveSession, ProviderEventHandler } from "../../core/provider.js";
-import type { LiveEventContext } from "../../events/normalize.js";
+import type {
+  LiveProvider,
+  LiveSession,
+  ProviderEvent,
+  ProviderEventHandler,
+} from "../../core/provider.js";
+import { eventTimestamp, type LiveEventContext } from "../../events/normalize.js";
 import {
   getWebcastEventNames,
   normalizeLiveSession,
@@ -26,6 +31,9 @@ export type TikTokClientFactory = (username: string) => TikTokConnectionLike;
 
 export interface TikTokLiveConnectorProviderOptions {
   clientFactory?: TikTokClientFactory;
+  clock?: SessionLifecycleOptions["clock"];
+  idFactory?: SessionLifecycleOptions["idFactory"];
+  eventIdFactory?: SessionLifecycleOptions["eventIdFactory"];
 }
 
 function createDefaultClient(username: string): TikTokConnectionLike {
@@ -40,9 +48,15 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
   private username: string | undefined;
   private liveEventContext: LiveEventContext | undefined;
   private clientListenerCleanups: Array<() => void> = [];
+  private readonly lifecycle: SessionLifecycle;
 
   constructor(options: TikTokLiveConnectorProviderOptions = {}) {
     this.clientFactory = options.clientFactory ?? createDefaultClient;
+    this.lifecycle = new SessionLifecycle({
+      clock: options.clock,
+      idFactory: options.idFactory,
+      eventIdFactory: options.eventIdFactory,
+    });
   }
 
   async connect(username: string): Promise<LiveSession> {
@@ -59,17 +73,17 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
     try {
       const state = await client.connect();
       const session = normalizeLiveSession(normalizedUsername, state.roomId);
-      this.liveEventContext = {
-        session: {
-          id: `session-${randomUUID()}`,
-          roomId: session.roomId,
-        },
-        creator: {
-          username: session.username,
-        },
-      };
+      const startedEvent = this.lifecycle.start({
+        roomId: session.roomId,
+        creator: { username: session.username },
+      });
+      const context = this.lifecycle.context;
+      if (context === undefined) {
+        throw new Error("Session lifecycle did not create a context.");
+      }
+      this.liveEventContext = context;
       this.attachClientEvents(client);
-      this.emitNormalizedEvent("sessionStarted", undefined);
+      this.emitEvent(startedEvent);
       return session;
     } catch (error) {
       this.detachClientEvents();
@@ -83,11 +97,11 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
   async disconnect(): Promise<void> {
     const client = this.client;
     const username = this.username ?? "creator";
-    const hadSession = client !== undefined && this.liveEventContext !== undefined;
-    if (hadSession) {
-      this.emitNormalizedEvent("streamEnd", {
-        common: { createTime: Date.now().toString() },
-      });
+    if (client !== undefined && this.liveEventContext !== undefined) {
+      const endedEvent = this.lifecycle.finish("stream_end");
+      if (endedEvent !== undefined) {
+        this.emitEvent(endedEvent);
+      }
     }
     this.detachClientEvents();
     this.client = undefined;
@@ -126,6 +140,18 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
   }
 
   private emitNormalizedEvent(type: string, payload: unknown): void {
+    if (type === "sessionStarted") {
+      return;
+    }
+
+    if (type === "streamEnd") {
+      const endedEvent = this.lifecycle.finish("stream_end", eventTimestamp(payload, new Date()));
+      if (endedEvent !== undefined) {
+        this.emitEvent(endedEvent);
+      }
+      return;
+    }
+
     if (this.liveEventContext === undefined) {
       return;
     }
@@ -135,6 +161,10 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
       return;
     }
 
+    this.emitEvent(event);
+  }
+
+  private emitEvent(event: ProviderEvent): void {
     for (const handler of this.handlers) {
       handler(event);
     }

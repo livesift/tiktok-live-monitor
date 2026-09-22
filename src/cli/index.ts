@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { MonitorError, normalizeMonitorError } from "../core/errors.js";
@@ -8,14 +8,30 @@ import { installSignalHandlers, MonitorController, type SignalSource } from "../
 import type { LiveProvider } from "../core/provider.js";
 import { normalizeCreatorUsername } from "../core/username.js";
 import type { LiveEvent } from "../events/types.js";
-import {
-  gatewayUrlFromEnvironment,
-  GatewayEventClient,
-} from "../events/gateway.js";
+import { gatewayUrlFromEnvironment, GatewayEventClient } from "../events/gateway.js";
 import { TikTokLiveConnectorProvider } from "../providers/tiktok-live-connector/provider.js";
+import {
+  HumanEventSink,
+  JsonlEventSink,
+  OutputCoordinator,
+  QueuedWritableSink,
+  initializeOutputFile,
+  type EventSink,
+  type TextSink,
+  type WritableStreamLike,
+} from "../sinks/index.js";
 
 export interface CliWriter {
   write(message: string): unknown;
+  once?: WritableStreamLike["once"];
+  off?: WritableStreamLike["off"];
+  end?: WritableStreamLike["end"];
+}
+
+export interface CliConfiguration {
+  username: string;
+  json: boolean;
+  output?: string;
 }
 
 export interface CliOptions {
@@ -31,12 +47,7 @@ export interface CliOptions {
 const usage = "Usage: tiktok-live-monitor <username>";
 
 function actorLabel(event: LiveEvent): string {
-  return (
-    event.actor?.username ??
-    event.actor?.nickname ??
-    event.actor?.userId ??
-    "unknown"
-  );
+  return event.actor?.username ?? event.actor?.nickname ?? event.actor?.userId ?? "unknown";
 }
 
 function eventTime(value: string): string {
@@ -71,14 +82,28 @@ export function formatLiveEvent(event: LiveEvent): string {
   }
 }
 
-export function parseCreatorUsername(args: readonly string[]): string {
+type CliParseResult = CliConfiguration | { help: string };
+
+export function parseCliOptions(args: readonly string[]): CliParseResult {
   const errors: string[] = [];
+  const help: string[] = [];
   const program = new Command()
     .name("tiktok-live-monitor")
-    .argument("<username>")
+    .description(
+      "Monitor a TikTok LIVE session. Default output is human-readable; use --json for JSONL.",
+    )
+    .usage("[options] <username>")
+    .argument("<username>", "TikTok LIVE creator username")
+    .option("--json", "write JSONL events to stdout; diagnostics go to stderr")
+    .option("-o, --output <path>", "write JSONL events to a truncated file")
+    .addHelpText(
+      "after",
+      "\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n",
+    )
     .allowExcessArguments(false)
     .exitOverride()
     .configureOutput({
+      writeOut: (message) => help.push(message),
       writeErr: (message) => errors.push(message),
       outputError: (message) => errors.push(message),
     });
@@ -90,23 +115,69 @@ export function parseCreatorUsername(args: readonly string[]): string {
 
   try {
     program.parse(["node", "tiktok-live-monitor", ...args]);
-  } catch {
+  } catch (error) {
+    if (error instanceof CommanderError && error.code === "commander.helpDisplayed") {
+      return { help: help.join("") };
+    }
     const details = errors.join(" ").trim();
     throw new MonitorError("INVALID_USERNAME", details === "" ? usage : `${usage}\n${details}`);
+  }
+
+  if (help.length > 0) {
+    return { help: help.join("") };
   }
 
   if (rawUsername === undefined) {
     throw new MonitorError("INVALID_USERNAME", usage);
   }
 
+  let username: string;
   try {
-    return normalizeCreatorUsername(rawUsername);
+    username = normalizeCreatorUsername(rawUsername);
   } catch (error) {
     const normalizedError = normalizeMonitorError(error, "INVALID_USERNAME");
     throw new MonitorError("INVALID_USERNAME", `${usage}\n${normalizedError.message}`, {
       cause: error,
     });
   }
+
+  const options = program.opts<{ json?: boolean; output?: string }>();
+  if (options.output !== undefined && options.output.trim() === "") {
+    throw new MonitorError("INVALID_USERNAME", `${usage}\nOutput path must not be empty.`);
+  }
+
+  return {
+    username,
+    json: options.json === true,
+    ...(options.output === undefined ? {} : { output: options.output }),
+  };
+}
+
+export function parseCreatorUsername(args: readonly string[]): string {
+  const parsed = parseCliOptions(args);
+  if ("help" in parsed) {
+    throw new MonitorError("INVALID_USERNAME", usage);
+  }
+  return parsed.username;
+}
+
+function createWriterTextSink(writer: CliWriter): TextSink {
+  if (writer.once !== undefined && writer.end !== undefined) {
+    return new QueuedWritableSink(writer as WritableStreamLike, { endOnClose: false });
+  }
+
+  return {
+    async write(chunk: string): Promise<void> {
+      await writer.write(chunk);
+    },
+    async close(): Promise<void> {
+      // 测试 writer 和调用方注入的轻量 writer 不拥有需要关闭的底层资源。
+    },
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function runCli(
@@ -115,16 +186,20 @@ export async function runCli(
 ): Promise<number> {
   const stdout = options.stdout ?? process.stdout;
   const stderr = options.stderr ?? process.stderr;
-  let username: string;
+  let configuration: CliConfiguration;
 
   try {
-    username = parseCreatorUsername(args);
+    const parsed = parseCliOptions(args);
+    if ("help" in parsed) {
+      stdout.write(parsed.help);
+      return 0;
+    }
+    configuration = parsed;
   } catch (error) {
     stderr.write(`${normalizeMonitorError(error, "INVALID_USERNAME").message}\n`);
     return 1;
   }
 
-  const provider = options.provider ?? new TikTokLiveConnectorProvider();
   const gatewayUrl = options.gatewayUrl ?? gatewayUrlFromEnvironment();
   let gatewayClient: GatewayEventClient | undefined;
   if (gatewayUrl !== undefined) {
@@ -136,6 +211,33 @@ export async function runCli(
       return 1;
     }
   }
+
+  let outputFile: Awaited<ReturnType<typeof initializeOutputFile>> | undefined;
+  if (configuration.output !== undefined) {
+    try {
+      outputFile = await initializeOutputFile(configuration.output);
+    } catch (error) {
+      stderr.write(`Output initialization failed: ${errorMessage(error)}\n`);
+      return 1;
+    }
+  }
+
+  const provider = options.provider ?? new TikTokLiveConnectorProvider();
+  const stdoutTextSink = createWriterTextSink(stdout);
+  const eventSinks: EventSink[] = [
+    configuration.json
+      ? new JsonlEventSink(stdoutTextSink)
+      : new HumanEventSink(stdoutTextSink, formatLiveEvent),
+  ];
+  if (outputFile !== undefined) {
+    eventSinks.push(new JsonlEventSink(outputFile.sink));
+  }
+  const outputCoordinator = new OutputCoordinator(eventSinks);
+  const statusWriter = configuration.json ? stderr : stdout;
+  const pendingOutputEvents = new Set<Promise<void>>();
+  const flushOutputEvents = async (): Promise<void> => {
+    await Promise.allSettled([...pendingOutputEvents]);
+  };
 
   const pendingGatewayEvents = new Set<Promise<void>>();
   const flushGatewayEvents = async (): Promise<void> => {
@@ -151,53 +253,115 @@ export async function runCli(
       stderr.write(`${message}\n`);
     });
     pendingGatewayEvents.add(delivery);
-    void delivery.finally(() => pendingGatewayEvents.delete(delivery));
+    void delivery.finally(() => pendingGatewayEvents.delete(delivery)).catch(() => undefined);
   };
-  const monitor = new MonitorController(provider);
   const keepAlive = options.keepAlive ?? true;
-  monitor.onEvent((event) => {
-    stdout.write(formatLiveEvent(event));
-    sendToGateway(event);
-  });
-
-  stdout.write(`Connecting to @${username}...\n`);
-
-  let resolveShutdown: ((code: number) => void) | undefined;
-  const shutdown = new Promise<number>((resolve) => {
+  let resolveShutdown: (() => void) | undefined;
+  const shutdown = new Promise<void>((resolve) => {
     resolveShutdown = resolve;
   });
+  let shutdownRequested = false;
+  let shutdownCode: number | undefined;
+  let signalRequested = false;
+  let outputFailureReported = false;
+  let finalizePromise: Promise<number> | undefined;
+  const monitor = new MonitorController(provider);
+
+  const requestShutdown = (code: number, failure?: unknown): void => {
+    if (failure !== undefined && !outputFailureReported) {
+      outputFailureReported = true;
+      stderr.write(`Output error: ${errorMessage(failure)}\n`);
+    }
+    if (shutdownCode === undefined || code !== 0) {
+      shutdownCode = code;
+    }
+    if (!shutdownRequested) {
+      shutdownRequested = true;
+      resolveShutdown?.();
+    }
+    if (code !== 0) {
+      void monitor.disconnect().catch((error: unknown) => {
+        stderr.write(`${normalizeMonitorError(error).message}\n`);
+      });
+    }
+  };
+
+  monitor.onEvent((event) => {
+    const output = outputCoordinator.write(event);
+    pendingOutputEvents.add(output);
+    void output
+      .catch((error: unknown) => {
+        requestShutdown(1, error);
+      })
+      .finally(() => pendingOutputEvents.delete(output));
+    sendToGateway(event);
+    if (event.type === "session_ended") {
+      requestShutdown(0);
+    }
+  });
+
+  statusWriter.write(`Connecting to @${configuration.username}...\n`);
+
   const removeSignalHandlers = installSignalHandlers(monitor, {
     source: options.signalSource,
     onExit: (code) => {
-      stdout.write("Disconnected.\n");
-      resolveShutdown?.(code);
+      signalRequested = true;
+      requestShutdown(code);
     },
   });
 
-  try {
-    const session = await monitor.connect(username);
-    stdout.write("LIVE detected\n");
-    stdout.write("Connected.\n");
-    stdout.write(`Room ID: ${session.roomId}\n`);
-
-    if (!keepAlive) {
-      removeSignalHandlers();
-      await monitor.disconnect();
-      await flushGatewayEvents();
-      return 0;
+  const finalize = (): Promise<number> => {
+    if (finalizePromise !== undefined) {
+      return finalizePromise;
     }
 
-    const exitCode = await shutdown;
-    removeSignalHandlers();
-    await monitor.disconnect();
-    await flushGatewayEvents();
-    return exitCode;
+    finalizePromise = (async () => {
+      removeSignalHandlers();
+      try {
+        await monitor.disconnect();
+      } catch (error) {
+        shutdownCode = 1;
+        stderr.write(`${normalizeMonitorError(error).message}\n`);
+      }
+      await flushOutputEvents();
+      try {
+        await outputCoordinator.close();
+      } catch (error) {
+        shutdownCode = 1;
+        if (!outputFailureReported) {
+          outputFailureReported = true;
+          stderr.write(`Output error: ${errorMessage(error)}\n`);
+        }
+      }
+      await flushGatewayEvents();
+      if (signalRequested) {
+        statusWriter.write("Disconnected.\n");
+      }
+      return shutdownCode ?? 0;
+    })();
+    return finalizePromise;
+  };
+
+  try {
+    const session = await monitor.connect(configuration.username);
+    statusWriter.write("LIVE detected\n");
+    statusWriter.write("Connected.\n");
+    statusWriter.write(`Room ID: ${session.roomId}\n`);
+
+    if (!keepAlive) {
+      requestShutdown(0);
+      return await finalize();
+    }
+
+    await shutdown;
+    return await finalize();
   } catch (error) {
-    removeSignalHandlers();
-    stderr.write(`${normalizeMonitorError(error).message}\n`);
-    await monitor.disconnect();
-    await flushGatewayEvents();
-    return 1;
+    if (!shutdownRequested) {
+      shutdownCode = 1;
+      stderr.write(`${normalizeMonitorError(error).message}\n`);
+      requestShutdown(1);
+    }
+    return await finalize();
   }
 }
 

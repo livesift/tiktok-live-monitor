@@ -20,6 +20,31 @@ npm run dev -- @username
 
 用户名可以带一个前导 `@`。CLI 连接流程会输出连接状态和直播房间信息；主播未开播时会输出可读的离线提示。
 
+默认模式会把连接状态和事件摘要以人类可读文本写入 stdout。使用 `--output` 保存同一场直播的 JSONL，或在 stdout 要交给脚本处理时使用 `--json`。
+
+## Session JSONL 输出
+
+```bash
+# 保留人类可读终端输出，同时写入会话 JSONL 文件。
+npm run dev -- @username --output ./data/session.jsonl
+
+# stdout 只有 JSONL 事件；状态和诊断信息写入 stderr。
+npm run dev -- --json @username | jq -c .
+
+# stdout 和文件同时接收等价的 JSONL 事件。
+npm run dev -- @username --json --output ./data/session.jsonl > session.stdout.jsonl
+```
+
+`--output <path>` 会以当前工作目录为基准解析相对路径，递归创建缺失的父目录，并在连接前以 truncate 模式打开目标文件，不会追加到旧文件。如果 provider 在产生事件前连接失败，已经初始化的文件会保持为空；路径无法创建或打开时，CLI 会在连接 TikTok 前失败。
+
+`--json` 保证 stdout 可被机器处理：每个事件都是一行完整 JSON object；连接状态、关闭消息和诊断信息写入 stderr。组合使用 `--json` 与 `--output` 时，两个 sink 会按相同顺序写入同一批事件。
+
+仓库提供确定性的会话示例 [`examples/session.jsonl`](./examples/session.jsonl)，可以逐行使用以下命令校验：
+
+```bash
+jq -e . examples/session.jsonl >/dev/null
+```
+
 ## 常用命令
 
 ```bash
@@ -38,9 +63,9 @@ npm run build             # 构建 Node.js 发布产物
 - `src/cli`、`src/core`、`src/providers/tiktok-live-connector`、`src/events` 模块边界
 - Vitest、ESLint、Prettier、tsx 和 tsup 开发工具
 - TikTok LIVE 连接生命周期与用户名校验的实现入口
+- 确定性的 session 生命周期事件，以及通过 `--json`、`--output` 提供的 JSONL 输出
 
-CLI 会输出连接状态以及支持的 TikTok 事件摘要。JSONL 导出和 Webhook
-仍属于后续迭代。
+CLI 会输出连接状态以及支持的 TikTok 事件摘要，也可以把完整 session 保存为 JSONL，供 shell 管道、fixture replay 和后续分析使用。
 
 ## 开发约定
 

@@ -5,11 +5,12 @@ import Ajv from "ajv";
 import { describe, expect, it } from "vitest";
 import { normalizeTikTokEvent } from "../src/events/normalize.js";
 
-const fixtureDirectory = resolve(fileURLToPath(new URL(".", import.meta.url)), "../schemas/fixtures");
+const fixtureDirectory = resolve(
+  fileURLToPath(new URL(".", import.meta.url)),
+  "../schemas/fixtures",
+);
 const schemaPath = resolve(fixtureDirectory, "../live-event.schema.json");
-const manifest = JSON.parse(
-  readFileSync(resolve(fixtureDirectory, "manifest.json"), "utf8"),
-) as {
+const manifest = JSON.parse(readFileSync(resolve(fixtureDirectory, "manifest.json"), "utf8")) as {
   schema: string;
   fixtures: Array<{ file: string; valid: boolean }>;
 };

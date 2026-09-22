@@ -73,6 +73,7 @@ describe("TikTokLiveConnectorProvider", () => {
 
     provider.onEvent(handler);
     await provider.connect("creator");
+    const startedSessionId = handler.mock.calls[0]?.[0].session.id;
     handler.mockClear();
     client.emit(WebcastEvent.CHAT, {
       common: { createTime: "1726794123000" },
@@ -93,6 +94,7 @@ describe("TikTokLiveConnectorProvider", () => {
         raw: expect.any(Object),
       }),
     );
+    expect(handler.mock.calls[0]?.[0].session.id).toBe(startedSessionId);
   });
 
   it("ignores provider events that are outside the LiveEvent contract", async () => {
@@ -124,14 +126,56 @@ describe("TikTokLiveConnectorProvider", () => {
     expect(handler).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "session_started",
-        data: {},
+        data: { startedAt: expect.any(String) },
       }),
     );
     expect(handler).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "session_ended",
-        data: { reason: "stream_end" },
+        data: {
+          startedAt: expect.any(String),
+          endedAt: expect.any(String),
+          reason: "stream_end",
+        },
       }),
     );
+  });
+
+  it("does not duplicate session_ended after a provider stream end", async () => {
+    const client = new FakeTikTokClient();
+    const provider = new TikTokLiveConnectorProvider({
+      clientFactory: () => client,
+      clock: () => new Date("2026-09-20T01:00:00Z"),
+      idFactory: () => "session-one",
+    });
+    const handler = vi.fn();
+
+    provider.onEvent(handler);
+    await provider.connect("creator");
+    client.emit(WebcastEvent.STREAM_END, {
+      common: { createTime: "2026-09-20T02:00:00Z" },
+    });
+    await provider.disconnect();
+
+    const lifecycleEvents = handler.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "session_started" || event.type === "session_ended");
+    expect(lifecycleEvents.map((event) => event.type)).toEqual([
+      "session_started",
+      "session_ended",
+    ]);
+    expect(lifecycleEvents[0].session).toEqual(lifecycleEvents[1].session);
+  });
+
+  it("does not emit lifecycle events when connection fails", async () => {
+    const client = new FakeTikTokClient();
+    client.connect.mockRejectedValueOnce(new Error("socket closed"));
+    const provider = new TikTokLiveConnectorProvider({ clientFactory: () => client });
+    const handler = vi.fn();
+
+    provider.onEvent(handler);
+    await expect(provider.connect("creator")).rejects.toThrow("Unable to connect");
+
+    expect(handler).not.toHaveBeenCalled();
   });
 });

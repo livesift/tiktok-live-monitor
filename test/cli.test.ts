@@ -1,6 +1,9 @@
 import { EventEmitter } from "node:events";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { formatLiveEvent, runCli } from "../src/cli/index.js";
+import { formatLiveEvent, parseCliOptions, runCli } from "../src/cli/index.js";
 import { MonitorError } from "../src/core/errors.js";
 import type { LiveProvider, LiveSession, ProviderEventHandler } from "../src/core/provider.js";
 import type { LiveEvent } from "../src/events/types.js";
@@ -9,14 +12,45 @@ class FakeProvider implements LiveProvider {
   connectCalls = 0;
   disconnectCalls = 0;
   connectError: unknown;
+  emitSessionEnd = false;
   private readonly session: LiveSession = { username: "creator", roomId: "room-cli" };
+  private readonly handlers = new Set<ProviderEventHandler>();
 
   async connect(username: string): Promise<LiveSession> {
     this.connectCalls += 1;
     if (this.connectError !== undefined) {
       throw this.connectError;
     }
-    return { ...this.session, username };
+    const session = { ...this.session, username };
+    if (this.emitSessionEnd) {
+      const base = {
+        platform: "tiktok" as const,
+        occurredAt: "2026-09-20T02:00:00Z",
+        receivedAt: "2026-09-20T02:00:01Z",
+        session: { id: "session-cli", roomId: session.roomId },
+        creator: { username: session.username },
+      };
+      for (const handler of this.handlers) {
+        handler({
+          ...base,
+          id: "event-started",
+          type: "session_started",
+          occurredAt: "2026-09-20T01:00:00Z",
+          data: { startedAt: "2026-09-20T01:00:00Z" },
+        });
+        handler({
+          ...base,
+          id: "event-ended",
+          type: "session_ended",
+          data: {
+            startedAt: "2026-09-20T01:00:00Z",
+            endedAt: "2026-09-20T02:00:00Z",
+            reason: "stream_end",
+          },
+        });
+      }
+    }
+    return session;
   }
 
   async disconnect(): Promise<void> {
@@ -24,7 +58,7 @@ class FakeProvider implements LiveProvider {
   }
 
   onEvent(handler: ProviderEventHandler): void {
-    void handler;
+    this.handlers.add(handler);
   }
 }
 
@@ -34,6 +68,39 @@ function createWriter() {
 }
 
 describe("runCli", () => {
+  it("parses flags before and after the username and renders help without connecting", async () => {
+    expect(parseCliOptions(["--json", "@creator", "--output", "session.jsonl"])).toEqual({
+      username: "creator",
+      json: true,
+      output: "session.jsonl",
+    });
+    expect(parseCliOptions(["@creator", "--output", "session.jsonl", "--json"])).toEqual({
+      username: "creator",
+      json: true,
+      output: "session.jsonl",
+    });
+    expect(() => parseCliOptions(["--unknown", "creator"])).toThrow("unknown option");
+    expect(() => parseCliOptions(["creator", "--output"])).toThrow(
+      "option '-o, --output <path>' argument missing",
+    );
+    expect(() => parseCliOptions(["creator", "extra"])).toThrow("too many arguments");
+
+    const provider = new FakeProvider();
+    const stdout = createWriter();
+    const exitCode = await runCli(["--help"], {
+      provider,
+      stdout,
+      stderr: createWriter(),
+      keepAlive: false,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(provider.connectCalls).toBe(0);
+    expect(stdout.value()).toContain("Usage: tiktok-live-monitor [options] <username>");
+    expect(stdout.value()).toContain("--json");
+    expect(stdout.value()).toContain("--output <path>");
+  });
+
   it("formats normalized comment, gift, like, and viewer summaries", () => {
     const base = {
       id: "event-cli",
@@ -167,5 +234,136 @@ describe("runCli", () => {
     await expect(run).resolves.toBe(0);
     expect(provider.disconnectCalls).toBe(1);
     expect(stdout.value()).toContain("Disconnected.\n");
+  });
+
+  it("exits when the provider emits session_ended", async () => {
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter();
+
+    await expect(
+      runCli(["creator"], {
+        provider,
+        stdout,
+        stderr: createWriter(),
+        keepAlive: true,
+      }),
+    ).resolves.toBe(0);
+
+    expect(provider.disconnectCalls).toBe(1);
+    expect(stdout.value()).toContain("SESSION ENDED\n");
+  });
+
+  it("keeps human output while writing JSONL to --output", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-cli-"));
+    const outputPath = join(root, "nested", "session.jsonl");
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter();
+
+    const exitCode = await runCli(["@creator", "--output", outputPath], {
+      provider,
+      stdout,
+      stderr: createWriter(),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout.value()).toContain("Connecting to @creator...\n");
+    expect(stdout.value()).toContain("SESSION STARTED\n");
+    const lines = (await readFile(outputPath, "utf8")).trimEnd().split("\n");
+    expect(lines.map((line) => JSON.parse(line).type)).toEqual([
+      "session_started",
+      "session_ended",
+    ]);
+  });
+
+  it("writes only JSONL to stdout in --json mode and keeps diagnostics on stderr", async () => {
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter();
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["--json", "creator"], {
+      provider,
+      stdout,
+      stderr,
+    });
+
+    expect(exitCode).toBe(0);
+    const lines = stdout.value().trimEnd().split("\n");
+    expect(lines.map((line) => JSON.parse(line).type)).toEqual([
+      "session_started",
+      "session_ended",
+    ]);
+    expect(stdout.value()).not.toContain("Connecting");
+    expect(stderr.value()).toContain("Connecting to @creator...\n");
+    expect(stderr.value()).toContain("Room ID: room-cli\n");
+  });
+
+  it("writes byte-equivalent JSONL to stdout and --output", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-cli-"));
+    const outputPath = join(root, "session.jsonl");
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter();
+
+    const exitCode = await runCli(["creator", "--json", "--output", outputPath], {
+      provider,
+      stdout,
+      stderr: createWriter(),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout.value()).toBe(await readFile(outputPath, "utf8"));
+  });
+
+  it("keeps JSON stdout empty for an offline creator", async () => {
+    const provider = new FakeProvider();
+    provider.connectError = new MonitorError("OFFLINE", "@creator is currently offline.");
+    const stdout = createWriter();
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["--json", "creator"], { provider, stdout, stderr });
+
+    expect(exitCode).toBe(1);
+    expect(stdout.value()).toBe("");
+    expect(stderr.value()).toContain("@creator is currently offline.\n");
+  });
+
+  it("rejects an output path before connecting", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-cli-"));
+    const conflict = join(root, "conflict");
+    await writeFile(conflict, "file");
+    const provider = new FakeProvider();
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator", "--output", join(conflict, "session.jsonl")], {
+      provider,
+      stdout: createWriter(),
+      stderr,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(provider.connectCalls).toBe(0);
+    expect(stderr.value()).toContain("Output initialization failed:");
+  });
+
+  it("returns a non-zero code and disconnects when stdout fails", async () => {
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = {
+      write: vi.fn((message: string) => {
+        if (message.startsWith("{")) {
+          throw new Error("EPIPE");
+        }
+      }),
+    };
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["--json", "creator"], { provider, stdout, stderr });
+
+    expect(exitCode).toBe(1);
+    expect(provider.disconnectCalls).toBe(1);
+    expect(stderr.value()).toContain("Output error: EPIPE\n");
   });
 });

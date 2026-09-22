@@ -20,6 +20,31 @@ npm run dev -- @username
 
 The username may include a leading `@`. The Day 1 connection flow reports the connection state and live room information, and shows a readable offline message when the creator is not live.
 
+By default, connection status and event summaries are human-readable on stdout. Use `--output` to save the same session as JSONL, or use `--json` when stdout is consumed by a script.
+
+## Session JSONL output
+
+```bash
+# Human-readable terminal output plus a truncated JSONL file.
+npm run dev -- @username --output ./data/session.jsonl
+
+# JSONL events only on stdout; status and diagnostics go to stderr.
+npm run dev -- --json @username | jq -c .
+
+# Send equivalent JSONL events to stdout and a file.
+npm run dev -- @username --json --output ./data/session.jsonl > session.stdout.jsonl
+```
+
+`--output <path>` resolves relative paths from the current working directory, creates missing parent directories, and truncates the target file before connecting. It does not append to an existing file. If the provider fails before producing an event, the initialized file remains empty. A path that cannot be created or opened fails before any TikTok connection is attempted.
+
+`--json` keeps stdout machine-readable: every event is one complete JSON object per line, while connection status, shutdown messages, and diagnostics are written to stderr. Combining `--json` and `--output` writes the same event objects, in the same order, to both sinks.
+
+The repository includes a deterministic session example at [`examples/session.jsonl`](./examples/session.jsonl). Validate it one line at a time with:
+
+```bash
+jq -e . examples/session.jsonl >/dev/null
+```
+
 ## Common commands
 
 ```bash
@@ -38,9 +63,9 @@ The initial project setup provides the foundation for the next iterations:
 - Module boundaries for `src/cli`, `src/core`, `src/providers/tiktok-live-connector`, and `src/events`
 - Vitest, ESLint, Prettier, tsx, and tsup development tooling
 - An implementation boundary for TikTok LIVE connection lifecycle and username validation
+- Deterministic session lifecycle events and JSONL output through `--json` and `--output`
 
-The monitor reports connection state and readable summaries for supported TikTok events.
-JSONL export and Webhook output remain future work.
+The monitor reports connection state and readable summaries for supported TikTok events. JSONL output is intended for shell pipelines, fixture replay, and downstream analysis.
 
 ## Development conventions
 

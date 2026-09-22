@@ -12,20 +12,19 @@ import {
 const context = {
   session: { id: "session-test", roomId: "room-test" },
   creator: { username: "creator" },
+  startedAt: "2026-09-20T01:00:00.000Z",
 };
-const fixtureDirectory = resolve(fileURLToPath(new URL(".", import.meta.url)), "../schemas/fixtures");
+const fixtureDirectory = resolve(
+  fileURLToPath(new URL(".", import.meta.url)),
+  "../schemas/fixtures",
+);
 
 describe("LiveEvent normalization", () => {
   it("builds an event with generated identity and UTC timestamps", () => {
-    const event = buildLiveEvent(
-      "comment",
-      { text: "hello" },
-      context,
-      {
-        occurredAt: "2026-09-20T01:02:03Z",
-        receivedAt: "2026-09-20T01:02:04Z",
-      },
-    );
+    const event = buildLiveEvent("comment", { text: "hello" }, context, {
+      occurredAt: "2026-09-20T01:02:03Z",
+      receivedAt: "2026-09-20T01:02:04Z",
+    });
 
     expect(event).toMatchObject({
       platform: "tiktok",
@@ -41,15 +40,56 @@ describe("LiveEvent normalization", () => {
   });
 
   it("rejects events missing required envelope fields", () => {
-    expect(() => parseLiveEvent({
-      platform: "tiktok",
-      type: "comment",
-      occurredAt: "2026-09-20T01:02:03Z",
-      receivedAt: "2026-09-20T01:02:04Z",
-      session: { id: "session-test" },
-      creator: { username: "creator" },
-      data: { text: "hello" },
-    })).toThrow();
+    expect(() =>
+      parseLiveEvent({
+        platform: "tiktok",
+        type: "comment",
+        occurredAt: "2026-09-20T01:02:03Z",
+        receivedAt: "2026-09-20T01:02:04Z",
+        session: { id: "session-test" },
+        creator: { username: "creator" },
+        data: { text: "hello" },
+      }),
+    ).toThrow();
+  });
+
+  it("validates lifecycle metadata and timestamp ordering", () => {
+    const started = buildLiveEvent(
+      "session_started",
+      { startedAt: "2026-09-20T01:00:00Z" },
+      context,
+      {
+        occurredAt: "2026-09-20T01:00:00Z",
+        receivedAt: "2026-09-20T01:00:01Z",
+      },
+    );
+    const ended = buildLiveEvent(
+      "session_ended",
+      {
+        startedAt: "2026-09-20T01:00:00Z",
+        endedAt: "2026-09-20T02:00:00Z",
+        reason: "creator_offline",
+      },
+      context,
+      {
+        occurredAt: "2026-09-20T02:00:00Z",
+        receivedAt: "2026-09-20T02:00:01Z",
+      },
+    );
+
+    expect(started.data.startedAt).toBe("2026-09-20T01:00:00Z");
+    expect(ended.data.endedAt).toBe("2026-09-20T02:00:00Z");
+    expect(() =>
+      liveEventSchema.parse({
+        ...ended,
+        data: { ...ended.data, endedAt: "2026-09-20T00:00:00Z" },
+        occurredAt: "2026-09-20T00:00:00Z",
+      }),
+    ).toThrow();
+    expect(() => liveEventSchema.parse({ ...started, data: {} })).toThrow();
+    expect(() =>
+      liveEventSchema.parse({ ...ended, data: { ...ended.data, reason: "" } }),
+    ).toThrow();
   });
 
   it("normalizes core TikTok payloads without leaking provider fields to the envelope", () => {

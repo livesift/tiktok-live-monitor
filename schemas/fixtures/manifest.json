@@ -36,6 +36,18 @@
     {
       "file": "invalid-negative-viewer-count.json",
       "valid": false
+    },
+    {
+      "file": "invalid-session-started-missing-metadata.json",
+      "valid": false
+    },
+    {
+      "file": "invalid-session-ended-missing-reason.json",
+      "valid": false
+    },
+    {
+      "file": "invalid-session-ended-invalid-timestamp.json",
+      "valid": false
     }
   ]
 }

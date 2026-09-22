@@ -5,16 +5,7 @@
   "description": "TikTok LIVE event envelope.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "id",
-    "platform",
-    "type",
-    "occurredAt",
-    "receivedAt",
-    "session",
-    "creator",
-    "data"
-  ],
+  "required": ["id", "platform", "type", "occurredAt", "receivedAt", "session", "creator", "data"],
   "properties": {
     "id": {
       "type": "string",
@@ -67,7 +58,7 @@
           "const": "session_started"
         },
         "data": {
-          "$ref": "#/definitions/sessionData"
+          "$ref": "#/definitions/sessionStartedData"
         }
       }
     },
@@ -77,7 +68,7 @@
           "const": "session_ended"
         },
         "data": {
-          "$ref": "#/definitions/sessionData"
+          "$ref": "#/definitions/sessionEndedData"
         }
       }
     },
@@ -195,9 +186,38 @@
         }
       }
     },
-    "sessionData": {
+    "sessionStartedData": {
       "type": "object",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": ["startedAt"],
+      "properties": {
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      }
+    },
+    "sessionEndedData": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["startedAt", "endedAt", "reason"],
+      "properties": {
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
     "extensionData": {
       "type": "object",

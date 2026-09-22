@@ -28,7 +28,15 @@ export interface LiveEventActor {
   nickname?: string;
 }
 
-export type SessionEventData = Record<string, unknown>;
+export interface SessionStartedEventData extends Record<string, unknown> {
+  startedAt: string;
+}
+
+export interface SessionEndedEventData extends Record<string, unknown> {
+  startedAt: string;
+  endedAt: string;
+  reason: string;
+}
 
 export interface CommentEventData extends Record<string, unknown> {
   text: string;
@@ -55,8 +63,8 @@ export interface ViewerCountEventData extends Record<string, unknown> {
 }
 
 export interface LiveEventDataByType {
-  session_started: SessionEventData;
-  session_ended: SessionEventData;
+  session_started: SessionStartedEventData;
+  session_ended: SessionEndedEventData;
   comment: CommentEventData;
   gift: GiftEventData;
   like: LikeEventData;
@@ -76,10 +84,9 @@ export interface LiveEventBase {
   raw?: unknown;
 }
 
-export type LiveEvent<TType extends LiveEventType = LiveEventType> =
-  TType extends LiveEventType
-    ? LiveEventBase & {
-        type: TType;
-        data: LiveEventDataByType[TType];
-      }
-    : never;
+export type LiveEvent<TType extends LiveEventType = LiveEventType> = TType extends LiveEventType
+  ? LiveEventBase & {
+      type: TType;
+      data: LiveEventDataByType[TType];
+    }
+  : never;

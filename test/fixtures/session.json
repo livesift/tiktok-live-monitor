@@ -1,0 +1,101 @@
+[
+  {
+    "id": "fixture-started",
+    "platform": "tiktok",
+    "type": "session_started",
+    "occurredAt": "2026-09-21T10:00:00.000Z",
+    "receivedAt": "2026-09-21T10:00:00.000Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "data": {
+      "startedAt": "2026-09-21T10:00:00.000Z"
+    }
+  },
+  {
+    "id": "fixture-comment",
+    "platform": "tiktok",
+    "type": "comment",
+    "occurredAt": "2026-09-21T10:00:05.000Z",
+    "receivedAt": "2026-09-21T10:00:05.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "actor": {
+      "userId": "viewer-1",
+      "username": "viewer_one",
+      "nickname": "Viewer One"
+    },
+    "data": {
+      "text": "Hello from the fixture"
+    }
+  },
+  {
+    "id": "fixture-gift",
+    "platform": "tiktok",
+    "type": "gift",
+    "occurredAt": "2026-09-21T10:00:10.000Z",
+    "receivedAt": "2026-09-21T10:00:10.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "actor": {
+      "userId": "viewer-2",
+      "username": "viewer_two"
+    },
+    "data": {
+      "giftId": "gift-rose",
+      "giftName": "Rose",
+      "count": 2,
+      "diamondCount": 2
+    }
+  },
+  {
+    "id": "fixture-viewers",
+    "platform": "tiktok",
+    "type": "viewer_count",
+    "occurredAt": "2026-09-21T10:00:20.000Z",
+    "receivedAt": "2026-09-21T10:00:20.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "data": {
+      "viewerCount": 1842
+    }
+  },
+  {
+    "id": "fixture-ended",
+    "platform": "tiktok",
+    "type": "session_ended",
+    "occurredAt": "2026-09-21T10:01:00.000Z",
+    "receivedAt": "2026-09-21T10:01:00.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "data": {
+      "startedAt": "2026-09-21T10:00:00.000Z",
+      "endedAt": "2026-09-21T10:01:00.000Z",
+      "reason": "stream_end"
+    }
+  }
+]

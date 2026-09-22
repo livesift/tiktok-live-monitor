@@ -34,9 +34,25 @@ const actorSchema = z
   })
   .strict();
 const extensionDataSchema = z.record(z.unknown());
-const commentDataSchema = z
-  .object({ text: z.string() })
-  .passthrough();
+const lifecycleTimestampSchema = z.string().datetime({ offset: false });
+const sessionStartedDataSchema = z.object({ startedAt: lifecycleTimestampSchema }).passthrough();
+const sessionEndedDataSchema = z
+  .object({
+    startedAt: lifecycleTimestampSchema,
+    endedAt: lifecycleTimestampSchema,
+    reason: z.string().min(1),
+  })
+  .passthrough()
+  .superRefine((data, refinementContext) => {
+    if (new Date(data.endedAt).getTime() < new Date(data.startedAt).getTime()) {
+      refinementContext.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endedAt"],
+        message: "endedAt must not be earlier than startedAt",
+      });
+    }
+  });
+const commentDataSchema = z.object({ text: z.string() }).passthrough();
 const giftDataSchema = z
   .object({
     giftId: z.string().min(1).optional(),
@@ -69,20 +85,40 @@ const baseEventSchema = z
   })
   .strict();
 
-export const liveEventSchema = z.discriminatedUnion("type", [
-  baseEventSchema.extend({ type: z.literal("session_started"), data: extensionDataSchema }),
-  baseEventSchema.extend({ type: z.literal("session_ended"), data: extensionDataSchema }),
-  baseEventSchema.extend({ type: z.literal("comment"), data: commentDataSchema }),
-  baseEventSchema.extend({ type: z.literal("gift"), data: giftDataSchema }),
-  baseEventSchema.extend({ type: z.literal("like"), data: likeDataSchema }),
-  baseEventSchema.extend({ type: z.literal("follow"), data: extensionDataSchema }),
-  baseEventSchema.extend({ type: z.literal("share"), data: extensionDataSchema }),
-  baseEventSchema.extend({ type: z.literal("viewer_count"), data: viewerCountDataSchema }),
-]);
+export const liveEventSchema = z
+  .discriminatedUnion("type", [
+    baseEventSchema.extend({ type: z.literal("session_started"), data: sessionStartedDataSchema }),
+    baseEventSchema.extend({ type: z.literal("session_ended"), data: sessionEndedDataSchema }),
+    baseEventSchema.extend({ type: z.literal("comment"), data: commentDataSchema }),
+    baseEventSchema.extend({ type: z.literal("gift"), data: giftDataSchema }),
+    baseEventSchema.extend({ type: z.literal("like"), data: likeDataSchema }),
+    baseEventSchema.extend({ type: z.literal("follow"), data: extensionDataSchema }),
+    baseEventSchema.extend({ type: z.literal("share"), data: extensionDataSchema }),
+    baseEventSchema.extend({ type: z.literal("viewer_count"), data: viewerCountDataSchema }),
+  ])
+  .superRefine((event, refinementContext) => {
+    const lifecycleTimestamp =
+      event.type === "session_started"
+        ? event.data.startedAt
+        : event.type === "session_ended"
+          ? event.data.endedAt
+          : undefined;
+    if (
+      lifecycleTimestamp !== undefined &&
+      new Date(event.occurredAt).getTime() !== new Date(lifecycleTimestamp).getTime()
+    ) {
+      refinementContext.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["occurredAt"],
+        message: `occurredAt must equal lifecycle timestamp for ${event.type}`,
+      });
+    }
+  });
 
 export interface LiveEventContext {
   session: LiveEventSession;
   creator: LiveEventCreator;
+  startedAt?: string;
 }
 
 export interface BuildLiveEventOptions {
@@ -141,10 +177,12 @@ function toDate(value: unknown): Date | undefined {
   return undefined;
 }
 
-function eventTimestamp(payload: unknown, fallback: Date): string {
+export function eventTimestamp(payload: unknown, fallback: Date): string {
   const record = asRecord(payload);
   const common = asRecord(record?.common);
-  return (toDate(common?.createTime ?? record?.timestampMs ?? record?.timestamp) ?? fallback).toISOString();
+  return (
+    toDate(common?.createTime ?? record?.timestampMs ?? record?.timestamp) ?? fallback
+  ).toISOString();
 }
 
 function compactActor(payload: unknown): LiveEventActor | undefined {
@@ -199,12 +237,7 @@ function viewerCountData(payload: unknown): ViewerCountEventData | undefined {
   // 不同版本的 tiktok-live-connector 使用过 viewerCount 和 total；
   // totalUser/popularity 作为兼容字段保留。部分消息会把 popularity 默认置为 0，
   // 因此不能使用简单的 ??，否则会遮蔽后续字段中的实际人数。
-  const candidates = [
-    record?.viewerCount,
-    record?.total,
-    record?.totalUser,
-    record?.popularity,
-  ]
+  const candidates = [record?.viewerCount, record?.total, record?.totalUser, record?.popularity]
     .map(nonNegativeInteger)
     .filter((value): value is number => value !== undefined);
   const data = candidates.find((value) => value > 0) ?? candidates[0];
@@ -271,10 +304,29 @@ export function normalizeTikTokEvent(
   };
 
   switch (providerType) {
-    case "sessionStarted":
-      return buildLiveEvent("session_started", {}, context, options);
-    case "streamEnd":
-      return buildLiveEvent("session_ended", { reason: "stream_end" }, context, options);
+    case "sessionStarted": {
+      const startedAt = context.startedAt ?? options.occurredAt ?? receivedAt;
+      return buildLiveEvent(
+        "session_started",
+        { startedAt: new Date(startedAt as string | number | Date).toISOString() },
+        context,
+        { ...options, occurredAt: startedAt },
+      );
+    }
+    case "streamEnd": {
+      const endedAt = new Date(options.occurredAt as string);
+      const startedAt = new Date(context.startedAt ?? endedAt).toISOString();
+      return buildLiveEvent(
+        "session_ended",
+        {
+          startedAt,
+          endedAt: endedAt.toISOString(),
+          reason: "stream_end",
+        },
+        context,
+        options,
+      );
+    }
     case "chat": {
       const content = nonEmptyString(asRecord(payload)?.content);
       return content === undefined
