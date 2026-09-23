@@ -45,6 +45,30 @@ The repository includes a deterministic session example at [`examples/session.js
 jq -e . examples/session.jsonl >/dev/null
 ```
 
+## Webhook integration
+
+Send the same normalized `LiveEvent` payload to any HTTP or HTTPS endpoint:
+
+```bash
+tiktok-live-monitor @username \
+  --webhook https://example.com/live-events \
+  --webhook-header "Authorization: Bearer $WEBHOOK_TOKEN" \
+  --webhook-header "X-Source: livesift"
+```
+
+The request is a JSON `POST` with `Content-Type: application/json`. Each event is attempted at most three times; retry delays increase exponentially. Network errors, timeouts, and non-2xx responses are reported to diagnostics, but a failed Webhook never stops LIVE monitoring or local Console/JSONL output. The built-in Gateway compatibility setting remains available through `LIVESIFT_GATEWAY_URL`; an explicit `--webhook` takes precedence and the environment value receives the `/v1/events` suffix when needed.
+
+Webhook delivery is best-effort. The CLI does not persist a delivery queue, store credentials, deduplicate events, or guarantee at-least-once delivery. Keep tokens in environment variables or a secret manager; header values are never included in failure diagnostics.
+
+To verify an integration locally, run the deterministic Webhook tests and inspect the mock request payload:
+
+```bash
+npm test -- --run test/webhook.test.ts
+npm run typecheck
+```
+
+Every request body is the same complete `LiveEvent` object emitted by `--json` and `--output`, so it can be validated with `schemas/live-event.schema.json` or replayed from `test/fixtures/webhook-event.json`.
+
 ## Common commands
 
 ```bash

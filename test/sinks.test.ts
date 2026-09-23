@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ConsoleSink,
   HumanEventSink,
   JsonlEventSink,
+  JsonlSink,
   OutputCoordinator,
   QueuedWritableSink,
   initializeOutputFile,
@@ -202,6 +204,11 @@ describe("QueuedWritableSink", () => {
 });
 
 describe("event sinks and output coordinator", () => {
+  it("exports stable ConsoleSink and JsonlSink names", () => {
+    expect(ConsoleSink).toBe(HumanEventSink);
+    expect(JsonlSink).toBe(JsonlEventSink);
+  });
+
   it("writes human and JSONL representations and fans out equivalent events", async () => {
     const human = new MemoryTextSink();
     const json = new MemoryTextSink();

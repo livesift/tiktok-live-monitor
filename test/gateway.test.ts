@@ -29,6 +29,50 @@ class EmittingProvider implements LiveProvider {
   }
 }
 
+class LifecycleProvider implements LiveProvider {
+  private handler: ProviderEventHandler | undefined;
+
+  async connect(username: string): Promise<LiveSession> {
+    const base = {
+      platform: "tiktok" as const,
+      occurredAt: "2026-09-20T01:00:00Z",
+      receivedAt: "2026-09-20T01:00:01Z",
+      session: { id: "session-lifecycle-webhook", roomId: "room-lifecycle-webhook" },
+      creator: { username },
+    };
+    this.handler?.({
+      ...base,
+      id: "event-started-webhook",
+      type: "session_started",
+      data: { startedAt: "2026-09-20T01:00:00Z" },
+    });
+    this.handler?.({
+      ...base,
+      id: "event-comment-webhook",
+      type: "comment",
+      data: { text: "hello" },
+    });
+    this.handler?.({
+      ...base,
+      id: "event-ended-webhook",
+      type: "session_ended",
+      occurredAt: "2026-09-20T01:01:00Z",
+      data: {
+        startedAt: "2026-09-20T01:00:00Z",
+        endedAt: "2026-09-20T01:01:00Z",
+        reason: "stream_end",
+      },
+    });
+    return { username, roomId: "room-lifecycle-webhook" };
+  }
+
+  async disconnect(): Promise<void> {}
+
+  onEvent(handler: ProviderEventHandler): void {
+    this.handler = handler;
+  }
+}
+
 function writer() {
   return { write: vi.fn<(message: string) => void>() };
 }
@@ -96,6 +140,64 @@ describe("Gateway event delivery", () => {
     expect(exitCode).toBe(0);
     expect(stderr.write).toHaveBeenCalledWith(
       "Gateway rejected event evt-gateway-test: id is required\n",
+    );
+  });
+
+  it("prefers an explicit webhook URL over the Gateway URL and sends once", async () => {
+    const fetchImpl = vi.fn(
+      async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
+      expect(String(input)).toBe("https://hooks.example.test/live");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer token");
+      return new Response(null, { status: 204 });
+      },
+    );
+
+    const exitCode = await runCli(
+      [
+        "creator",
+        "--webhook",
+        "https://hooks.example.test/live",
+        "--webhook-header",
+        "Authorization: Bearer token",
+      ],
+      {
+      provider: new EmittingProvider(),
+      stdout: writer(),
+      stderr: writer(),
+      keepAlive: false,
+      gatewayUrl: "http://localhost:8080",
+      gatewayFetch: fetchImpl,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the session alive and closes local output when Webhook delivery fails", async () => {
+    const fetchImpl = vi.fn(
+      async (): Promise<Response> =>
+        new Response(JSON.stringify({ error: { message: "endpoint down" } }), { status: 503 }),
+    );
+    const stdout = writer();
+    const stderr = writer();
+
+    const exitCode = await runCli(["--json", "creator", "--webhook", "https://hooks.example.test/live"], {
+      provider: new LifecycleProvider(),
+      stdout,
+      stderr,
+      gatewayFetch: fetchImpl,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout.write.mock.calls.map(([line]) => JSON.parse(line).type)).toEqual([
+      "session_started",
+      "comment",
+      "session_ended",
+    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(9);
+    expect(stderr.write.mock.calls.map(([line]) => line).join("")).toContain(
+      "Webhook rejected event event-ended-webhook",
     );
   });
 });

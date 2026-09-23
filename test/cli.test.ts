@@ -79,11 +79,38 @@ describe("runCli", () => {
       json: true,
       output: "session.jsonl",
     });
+    expect(parseCliOptions(["@creator", "--webhook", "https://example.test/events"])).toEqual({
+      username: "creator",
+      json: false,
+      webhook: "https://example.test/events",
+    });
+    expect(
+      parseCliOptions([
+        "@creator",
+        "--webhook",
+        "https://example.test/events",
+        "--webhook-header",
+        "Authorization: Bearer token",
+        "--webhook-header",
+        "X-Source: livesift",
+      ]),
+    ).toEqual({
+      username: "creator",
+      json: false,
+      webhook: "https://example.test/events",
+      webhookHeaders: [
+        { name: "Authorization", value: "Bearer token" },
+        { name: "X-Source", value: "livesift" },
+      ],
+    });
     expect(() => parseCliOptions(["--unknown", "creator"])).toThrow("unknown option");
     expect(() => parseCliOptions(["creator", "--output"])).toThrow(
       "option '-o, --output <path>' argument missing",
     );
     expect(() => parseCliOptions(["creator", "extra"])).toThrow("too many arguments");
+    expect(() => parseCliOptions(["creator", "--webhook-header", "Authorization"])).toThrow(
+      '"Name: value"',
+    );
 
     const provider = new FakeProvider();
     const stdout = createWriter();
@@ -99,6 +126,8 @@ describe("runCli", () => {
     expect(stdout.value()).toContain("Usage: tiktok-live-monitor [options] <username>");
     expect(stdout.value()).toContain("--json");
     expect(stdout.value()).toContain("--output <path>");
+    expect(stdout.value()).toContain("--webhook <url>");
+    expect(stdout.value()).toContain("--webhook-header <header>");
   });
 
   it("formats normalized comment, gift, like, and viewer summaries", () => {
@@ -197,6 +226,22 @@ describe("runCli", () => {
     expect(stderr.value()).toContain(
       "Username must be 1-24 letters, numbers, dots, underscores, or hyphens.",
     );
+  });
+
+  it("rejects an invalid Webhook URL before starting a connection", async () => {
+    const provider = new FakeProvider();
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator", "--webhook", "ftp://example.test/events"], {
+      provider,
+      stdout: createWriter(),
+      stderr,
+      keepAlive: false,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(provider.connectCalls).toBe(0);
+    expect(stderr.value()).toContain("Webhook URL must use http or https.");
   });
 
   it("prints provider errors without a stack trace", async () => {

@@ -1,0 +1,20 @@
+{
+  "id": "evt-webhook-fixture",
+  "platform": "tiktok",
+  "type": "comment",
+  "occurredAt": "2026-09-21T10:00:12.000Z",
+  "receivedAt": "2026-09-21T10:00:12.100Z",
+  "session": {
+    "id": "session-webhook-fixture",
+    "roomId": "room-webhook-fixture"
+  },
+  "creator": {
+    "username": "creator"
+  },
+  "actor": {
+    "username": "viewer"
+  },
+  "data": {
+    "text": "hello from webhook"
+  }
+}

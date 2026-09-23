@@ -54,6 +54,9 @@ export class HumanEventSink implements EventSink {
   }
 }
 
+// 保留历史名称，同时提供与公共 API 文档一致的 sink 名称。
+export { HumanEventSink as ConsoleSink, JsonlEventSink as JsonlSink };
+
 export class OutputCoordinator {
   private queue: Promise<void> = Promise.resolve();
   private firstFailure: Error | undefined;

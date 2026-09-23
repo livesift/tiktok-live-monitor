@@ -45,6 +45,30 @@ npm run dev -- @username --json --output ./data/session.jsonl > session.stdout.j
 jq -e . examples/session.jsonl >/dev/null
 ```
 
+## Webhook 集成
+
+可以把同一份规范化 `LiveEvent` 发送到任意 HTTP 或 HTTPS endpoint：
+
+```bash
+npm run dev -- @username \
+  --webhook https://example.com/live-events \
+  --webhook-header "Authorization: Bearer $WEBHOOK_TOKEN" \
+  --webhook-header "X-Source: livesift"
+```
+
+请求使用 JSON `POST` 和 `Content-Type: application/json`。每个事件最多尝试 3 次，重试等待时间按指数递增。网络错误、超时和非 2xx 响应会写入诊断信息，但 Webhook 失败不会停止 LIVE 监控，也不会阻止本地 Console/JSONL 输出。已有 Gateway 兼容配置仍可通过 `LIVESIFT_GATEWAY_URL` 使用；显式 `--webhook` 优先，环境变量 endpoint 在需要时自动补全 `/v1/events`。
+
+Webhook 是 best-effort 投递：CLI 不提供持久化投递队列、凭证存储、事件去重或至少一次投递保证。建议通过环境变量或 secret manager 注入 token；失败诊断不会记录 Header 值。
+
+可以使用确定性的 Webhook 测试验证本地集成，并检查 mock 请求 payload：
+
+```bash
+npm test -- --run test/webhook.test.ts
+npm run typecheck
+```
+
+每个请求 body 都是与 `--json` 和 `--output` 相同的完整 `LiveEvent` 对象，可以使用 `schemas/live-event.schema.json` 校验，也可以重放 `test/fixtures/webhook-event.json`。
+
 ## 常用命令
 
 ```bash

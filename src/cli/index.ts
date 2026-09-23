@@ -8,16 +8,19 @@ import { installSignalHandlers, MonitorController, type SignalSource } from "../
 import type { LiveProvider } from "../core/provider.js";
 import { normalizeCreatorUsername } from "../core/username.js";
 import type { LiveEvent } from "../events/types.js";
-import { gatewayUrlFromEnvironment, GatewayEventClient } from "../events/gateway.js";
+import { gatewayUrlFromEnvironment, resolveGatewayEventsEndpoint } from "../events/gateway.js";
 import { TikTokLiveConnectorProvider } from "../providers/tiktok-live-connector/provider.js";
 import {
-  HumanEventSink,
-  JsonlEventSink,
+  ConsoleSink,
+  JsonlSink,
   OutputCoordinator,
   QueuedWritableSink,
+  WebhookEventSink,
   initializeOutputFile,
+  parseWebhookHeader,
   type EventSink,
   type TextSink,
+  type WebhookHeader,
   type WritableStreamLike,
 } from "../sinks/index.js";
 
@@ -32,6 +35,8 @@ export interface CliConfiguration {
   username: string;
   json: boolean;
   output?: string;
+  webhook?: string;
+  webhookHeaders?: readonly WebhookHeader[];
 }
 
 export interface CliOptions {
@@ -96,9 +101,16 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
     .argument("<username>", "TikTok LIVE creator username")
     .option("--json", "write JSONL events to stdout; diagnostics go to stderr")
     .option("-o, --output <path>", "write JSONL events to a truncated file")
+    .option("--webhook <url>", "POST normalized events to an HTTP endpoint")
+    .option(
+      "--webhook-header <header>",
+      'add a webhook header using the "Name: value" format; repeatable',
+      (value: string, previous: string[] = []) => [...previous, value],
+      [],
+    )
     .addHelpText(
       "after",
-      "\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n",
+      "\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n  tiktok-live-monitor @creator --webhook https://example.test/events --webhook-header \"Authorization: Bearer TOKEN\"\n",
     )
     .allowExcessArguments(false)
     .exitOverride()
@@ -141,15 +153,33 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
     });
   }
 
-  const options = program.opts<{ json?: boolean; output?: string }>();
+  const options = program.opts<{
+    json?: boolean;
+    output?: string;
+    webhook?: string;
+    webhookHeader?: string[];
+  }>();
   if (options.output !== undefined && options.output.trim() === "") {
     throw new MonitorError("INVALID_USERNAME", `${usage}\nOutput path must not be empty.`);
+  }
+  if (options.webhook !== undefined && options.webhook.trim() === "") {
+    throw new MonitorError("INVALID_USERNAME", `${usage}\nWebhook URL must not be empty.`);
+  }
+  let webhookHeaders: WebhookHeader[] | undefined;
+  try {
+    webhookHeaders = options.webhookHeader?.map(parseWebhookHeader);
+  } catch (error) {
+    throw new MonitorError("INVALID_USERNAME", `${usage}\n${errorMessage(error)}`, {
+      cause: error,
+    });
   }
 
   return {
     username,
     json: options.json === true,
     ...(options.output === undefined ? {} : { output: options.output }),
+    ...(options.webhook === undefined ? {} : { webhook: options.webhook }),
+    ...(webhookHeaders === undefined || webhookHeaders.length === 0 ? {} : { webhookHeaders }),
   };
 }
 
@@ -201,13 +231,26 @@ export async function runCli(
   }
 
   const gatewayUrl = options.gatewayUrl ?? gatewayUrlFromEnvironment();
-  let gatewayClient: GatewayEventClient | undefined;
-  if (gatewayUrl !== undefined) {
+  const webhookUrl = configuration.webhook ?? gatewayUrl;
+  let webhookSink: WebhookEventSink | undefined;
+  if (webhookUrl !== undefined) {
     try {
-      gatewayClient = new GatewayEventClient(gatewayUrl, { fetchImpl: options.gatewayFetch });
+      const endpoint =
+        configuration.webhook === undefined
+          ? resolveGatewayEventsEndpoint(webhookUrl)
+          : webhookUrl;
+      webhookSink = new WebhookEventSink(endpoint, {
+        fetchImpl: options.gatewayFetch,
+        headers: configuration.webhookHeaders,
+        errorLabel: configuration.webhook === undefined ? "Gateway" : "Webhook",
+        includeEndpointInError: configuration.webhook !== undefined,
+        onError: (error) => stderr.write(`${error.message}\n`),
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Invalid Gateway URL.";
-      stderr.write(`Invalid Gateway URL: ${message}\n`);
+      const message = error instanceof Error ? error.message : "Invalid Webhook URL.";
+      stderr.write(
+        `${configuration.webhook === undefined ? "Invalid Gateway URL" : "Invalid Webhook URL"}: ${message}\n`,
+      );
       return 1;
     }
   }
@@ -226,11 +269,14 @@ export async function runCli(
   const stdoutTextSink = createWriterTextSink(stdout);
   const eventSinks: EventSink[] = [
     configuration.json
-      ? new JsonlEventSink(stdoutTextSink)
-      : new HumanEventSink(stdoutTextSink, formatLiveEvent),
+      ? new JsonlSink(stdoutTextSink)
+      : new ConsoleSink(stdoutTextSink, formatLiveEvent),
   ];
   if (outputFile !== undefined) {
-    eventSinks.push(new JsonlEventSink(outputFile.sink));
+    eventSinks.push(new JsonlSink(outputFile.sink));
+  }
+  if (webhookSink !== undefined) {
+    eventSinks.push(webhookSink);
   }
   const outputCoordinator = new OutputCoordinator(eventSinks);
   const statusWriter = configuration.json ? stderr : stdout;
@@ -239,22 +285,6 @@ export async function runCli(
     await Promise.allSettled([...pendingOutputEvents]);
   };
 
-  const pendingGatewayEvents = new Set<Promise<void>>();
-  const flushGatewayEvents = async (): Promise<void> => {
-    await Promise.all([...pendingGatewayEvents]);
-  };
-  const sendToGateway = (event: LiveEvent): void => {
-    if (gatewayClient === undefined) {
-      return;
-    }
-
-    const delivery = gatewayClient.send(event).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "Unknown Gateway error.";
-      stderr.write(`${message}\n`);
-    });
-    pendingGatewayEvents.add(delivery);
-    void delivery.finally(() => pendingGatewayEvents.delete(delivery)).catch(() => undefined);
-  };
   const keepAlive = options.keepAlive ?? true;
   let resolveShutdown: (() => void) | undefined;
   const shutdown = new Promise<void>((resolve) => {
@@ -294,7 +324,6 @@ export async function runCli(
         requestShutdown(1, error);
       })
       .finally(() => pendingOutputEvents.delete(output));
-    sendToGateway(event);
     if (event.type === "session_ended") {
       requestShutdown(0);
     }
@@ -333,7 +362,6 @@ export async function runCli(
           stderr.write(`Output error: ${errorMessage(error)}\n`);
         }
       }
-      await flushGatewayEvents();
       if (signalRequested) {
         statusWriter.write("Disconnected.\n");
       }
