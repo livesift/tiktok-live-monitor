@@ -10,7 +10,7 @@ Use this checklist to review the Public OSS release candidate before creating th
 
 ## Automated Gates
 
-- [x] `.github/workflows/ci.yml` runs `npm ci`, format, lint, typecheck, test, build, `npm pack --dry-run`, and `release:check` on Node.js 20.
+- [x] `.github/workflows/ci.yml` runs `npm ci`, format, lint, typecheck, test, build, `npm pack --dry-run`, and `release:check` on Node.js 24; `actions/checkout` and `actions/setup-node` use v5 with the Node.js 24 action runtime.
 - [x] CI path filters cover only Public source, fixtures, schemas, Docker, documentation, and release configuration; permissions are `contents: read`, with no account, token, or real-live smoke step.
 - [x] `release:check` validates package metadata, the dist entry point, README commands, schema fixtures, JSONL, and this checklist, and exits non-zero for missing or inconsistent files.
 

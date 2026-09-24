@@ -61,18 +61,18 @@ defaults:
 
 jobs:
   verify:
-    name: Node.js 20 verification
+    name: Node.js 24 verification
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout Public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

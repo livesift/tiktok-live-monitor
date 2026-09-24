@@ -12,7 +12,7 @@ English version: [ALPHA_RELEASE_CHECKLIST-en.md](./ALPHA_RELEASE_CHECKLIST-en.md
 
 ## 自动化门禁
 
-- [x] `.github/workflows/ci.yml` 在 Node.js 20 上执行 `npm ci`、format、lint、typecheck、test、build、`npm pack --dry-run` 和 `release:check`。
+- [x] `.github/workflows/ci.yml` 在 Node.js 24 上执行 `npm ci`、format、lint、typecheck、test、build、`npm pack --dry-run` 和 `release:check`；`actions/checkout` 与 `actions/setup-node` 使用 Node.js 24 运行时兼容的 v5。
 - [x] CI 路径过滤仅覆盖 Public 工程源码、fixture、schema、Docker、文档和发布配置；权限为 `contents: read`，没有账号、token 或真实直播 smoke。
 - [x] `release:check` 校验 package metadata、dist 入口、README 关键命令、schema fixture、JSONL 和本清单；缺失文件或不一致时返回非零。
 
