@@ -1,0 +1,100 @@
+name: Public OSS CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/ci.yml"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "src/**"
+      - "test/**"
+      - "schemas/**"
+      - "examples/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsup.config.ts"
+      - "vitest.config.ts"
+      - "eslint.config.mjs"
+      - "README.md"
+      - "README-zh.md"
+      - "DISCLAIMER.md"
+      - "THIRD_PARTY_NOTICES.md"
+      - "RELEASE_NOTES.md"
+      - "LICENSE"
+  pull_request:
+    paths:
+      - ".github/workflows/ci.yml"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "src/**"
+      - "test/**"
+      - "schemas/**"
+      - "examples/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsup.config.ts"
+      - "vitest.config.ts"
+      - "eslint.config.mjs"
+      - "README.md"
+      - "README-zh.md"
+      - "DISCLAIMER.md"
+      - "THIRD_PARTY_NOTICES.md"
+      - "RELEASE_NOTES.md"
+      - "LICENSE"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-oss-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  verify:
+    name: Node.js 20 verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Public repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+      - name: Inspect package archive
+        run: npm pack --dry-run --json
+
+      - name: Run release gate
+        run: npm run release:check

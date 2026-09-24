@@ -47,7 +47,7 @@ export function parseWebhookHeader(rawHeader: string): WebhookHeader {
   const name = rawHeader.slice(0, separator).trim();
   const value = rawHeader.slice(separator + 1).trim();
   if (name === "" || value === "") {
-    throw new Error('Webhook header must include a non-empty name and value.');
+    throw new Error("Webhook header must include a non-empty name and value.");
   }
   if (name.toLowerCase() === "content-type") {
     throw new Error("Webhook header must not override Content-Type.");

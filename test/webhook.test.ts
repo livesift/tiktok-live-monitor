@@ -2,15 +2,13 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import {
-  parseWebhookHeader,
-  WebhookEventSink,
-  type WebhookHeader,
-} from "../src/sinks/webhook.js";
+import { parseWebhookHeader, WebhookEventSink, type WebhookHeader } from "../src/sinks/webhook.js";
 import type { LiveEvent } from "../src/events/types.js";
 import { createMockWebhookServer } from "./support/mock-webhook.js";
 
-const fixturePath = resolve(fileURLToPath(new URL("./fixtures/webhook-event.json", import.meta.url)));
+const fixturePath = resolve(
+  fileURLToPath(new URL("./fixtures/webhook-event.json", import.meta.url)),
+);
 const fixture = JSON.parse(await readFile(fixturePath, "utf8")) as LiveEvent;
 
 describe("WebhookEventSink", () => {
@@ -41,9 +39,10 @@ describe("WebhookEventSink", () => {
     expect(() => parseWebhookHeader("Authorization:")).toThrow("non-empty");
     expect(() => parseWebhookHeader("Content-Type: text/plain")).toThrow("Content-Type");
     expect(
-      () => new WebhookEventSink("https://example.test/events", {
-        headers: [{ name: "Content-Type", value: "text/plain" }],
-      }),
+      () =>
+        new WebhookEventSink("https://example.test/events", {
+          headers: [{ name: "Content-Type", value: "text/plain" }],
+        }),
     ).toThrow("Content-Type");
     expect(() => new WebhookEventSink("ftp://example.test/events")).toThrow("http or https");
   });
@@ -70,7 +69,9 @@ describe("WebhookEventSink", () => {
 
   it("records a final failure without rejecting the sink write", async () => {
     const errors: Error[] = [];
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: { message: "down" } }), { status: 503 }));
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify({ error: { message: "down" } }), { status: 503 }),
+    );
     const sink = new WebhookEventSink("https://example.test/events", {
       fetchImpl,
       retryDelayMs: 0,

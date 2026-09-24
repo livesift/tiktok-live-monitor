@@ -146,9 +146,9 @@ describe("Gateway event delivery", () => {
   it("prefers an explicit webhook URL over the Gateway URL and sends once", async () => {
     const fetchImpl = vi.fn(
       async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
-      expect(String(input)).toBe("https://hooks.example.test/live");
-      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer token");
-      return new Response(null, { status: 204 });
+        expect(String(input)).toBe("https://hooks.example.test/live");
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer token");
+        return new Response(null, { status: 204 });
       },
     );
 
@@ -161,12 +161,12 @@ describe("Gateway event delivery", () => {
         "Authorization: Bearer token",
       ],
       {
-      provider: new EmittingProvider(),
-      stdout: writer(),
-      stderr: writer(),
-      keepAlive: false,
-      gatewayUrl: "http://localhost:8080",
-      gatewayFetch: fetchImpl,
+        provider: new EmittingProvider(),
+        stdout: writer(),
+        stderr: writer(),
+        keepAlive: false,
+        gatewayUrl: "http://localhost:8080",
+        gatewayFetch: fetchImpl,
       },
     );
 
@@ -182,12 +182,15 @@ describe("Gateway event delivery", () => {
     const stdout = writer();
     const stderr = writer();
 
-    const exitCode = await runCli(["--json", "creator", "--webhook", "https://hooks.example.test/live"], {
-      provider: new LifecycleProvider(),
-      stdout,
-      stderr,
-      gatewayFetch: fetchImpl,
-    });
+    const exitCode = await runCli(
+      ["--json", "creator", "--webhook", "https://hooks.example.test/live"],
+      {
+        provider: new LifecycleProvider(),
+        stdout,
+        stderr,
+        gatewayFetch: fetchImpl,
+      },
+    );
 
     expect(exitCode).toBe(0);
     expect(stdout.write.mock.calls.map(([line]) => JSON.parse(line).type)).toEqual([

@@ -1,24 +1,54 @@
 # TikTok Live Monitor
 
-An open-source CLI for connecting to TikTok LIVE. Built with TypeScript and Node.js, it keeps the provider adapter separate from the monitoring core and future event outputs.
+An open-source TikTok LIVE tracker and real-time monitor for chat, gifts, viewers, likes, follows, shares and session events. Built with TypeScript and Node.js, it keeps the provider adapter separate from the monitoring core and future event outputs.
 
-中文版：[README-zh.md](./README-zh.md)
+> Unofficial community project. It is not affiliated with TikTok or ByteDance, and it does not require a LiveSift account or Private Gateway.
+
+English | [简体中文](./README-zh.md) | [Disclaimer](./DISCLAIMER-en.md) | [Third-party notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha release notes](./RELEASE_NOTES-en.md) | [Release checklist](./ALPHA_RELEASE_CHECKLIST-en.md)
 
 ## Requirements
 
 - Node.js 20 or later
 - npm 10 or later
+- `jq` is useful for inspecting JSONL output
+- Docker is optional for container-based runs
 
-## Quick start
+## Quick start from source
 
 ```bash
 git clone <repository-url>
 cd tiktok-live-monitor
-npm install
+npm ci
+npm run build
+npm run start -- --help
 npm run dev -- @username
 ```
 
-The username may include a leading `@`. The Day 1 connection flow reports the connection state and live room information, and shows a readable offline message when the creator is not live.
+The username may include a leading `@`. The CLI reports connection state and live room information, and shows a readable offline message when the creator is not live. A LiveSift login, `LIVESIFT_GATEWAY_URL`, or Private `/v1/events` endpoint is not required for this Public flow.
+
+When the alpha package is available from npm, the same CLI can be started from a clean environment with:
+
+```bash
+npx --yes tiktok-live-monitor --help
+npx --yes tiktok-live-monitor @username
+```
+
+To run the local container after building it:
+
+```bash
+docker build -t tiktok-live-monitor:local .
+docker run --rm tiktok-live-monitor:local --help
+docker run --rm tiktok-live-monitor:local @username --output /tmp/session.jsonl
+```
+
+The image runs as the non-root `node` user. Its entrypoint and the npm binary accept the same arguments. The `/app` working directory is writable for relative output paths; mount a writable host directory when the session file must survive the container:
+
+```bash
+docker run --rm -v "$PWD/data:/data" tiktok-live-monitor:local \
+  @username --output /data/session.jsonl
+```
+
+The runtime user must have write permission for mounted output directories. If your host volume uses a different owner, adjust it before running or pass an explicit compatible `--user` to Docker.
 
 By default, connection status and event summaries are human-readable on stdout. Use `--output` to save the same session as JSONL, or use `--json` when stdout is consumed by a script.
 
@@ -43,7 +73,10 @@ The repository includes a deterministic session example at [`examples/session.js
 
 ```bash
 jq -e . examples/session.jsonl >/dev/null
+npm test -- --run test/session-fixture.test.ts test/live-event-contract.test.ts
 ```
+
+See [`examples/README-en.md`](./examples/README-en.md) for the fixture, schema and Webhook validation map.
 
 ## Webhook integration
 
@@ -56,7 +89,7 @@ tiktok-live-monitor @username \
   --webhook-header "X-Source: livesift"
 ```
 
-The request is a JSON `POST` with `Content-Type: application/json`. Each event is attempted at most three times; retry delays increase exponentially. Network errors, timeouts, and non-2xx responses are reported to diagnostics, but a failed Webhook never stops LIVE monitoring or local Console/JSONL output. The built-in Gateway compatibility setting remains available through `LIVESIFT_GATEWAY_URL`; an explicit `--webhook` takes precedence and the environment value receives the `/v1/events` suffix when needed.
+The request is a JSON `POST` with `Content-Type: application/json`. Each event is attempted at most three times; retry delays increase exponentially. Network errors, timeouts, and non-2xx responses are reported to diagnostics, but a failed Webhook never stops LIVE monitoring or local Console/JSONL output. An explicit `--webhook` works with any absolute HTTP/HTTPS endpoint and does not require a `/v1/events` path. The built-in Private Gateway compatibility setting remains available through `LIVESIFT_GATEWAY_URL`; an explicit `--webhook` takes precedence and the environment value receives the `/v1/events` suffix when needed.
 
 Webhook delivery is best-effort. The CLI does not persist a delivery queue, store credentials, deduplicate events, or guarantee at-least-once delivery. Keep tokens in environment variables or a secret manager; header values are never included in failure diagnostics.
 
@@ -67,7 +100,7 @@ npm test -- --run test/webhook.test.ts
 npm run typecheck
 ```
 
-Every request body is the same complete `LiveEvent` object emitted by `--json` and `--output`, so it can be validated with `schemas/live-event.schema.json` or replayed from `test/fixtures/webhook-event.json`.
+Every request body is the same complete `LiveEvent` object emitted by `--json` and `--output`, so it can be validated with `schemas/live-event.schema.json` or replayed from `test/fixtures/webhook-event.json`. The deterministic Webhook test covers headers, payload equivalence, retries and best-effort failure behavior without a LiveSift account.
 
 ## Common commands
 
@@ -76,8 +109,18 @@ npm run dev -- @username  # Run the development CLI with tsx
 npm test                  # Run Vitest unit tests
 npm run typecheck         # Run the TypeScript type checker
 npm run lint              # Run ESLint
+npm run format:check      # Check Prettier formatting
 npm run build             # Build the Node.js distribution
+npm run start -- --help   # Run the built CLI
 ```
+
+## Troubleshooting
+
+- An offline creator is a valid Public result. The CLI prints an offline message and exits non-zero without emitting lifecycle events.
+- Invalid usernames, URLs, headers or output paths fail before a TikTok connection is attempted. Read the usage text on stderr and correct the argument.
+- In `--json` mode stdout contains only JSONL events; connection status and diagnostics are written to stderr.
+- A Webhook outage is best-effort: local Console/JSONL output continues, while the endpoint error includes the event ID and final reason but never the Header value.
+- TikTok-Live-Connector uses Euler Stream for WebSocket signing. Provider availability and limits are controlled by independent third parties; see [third-party notices](./THIRD_PARTY_NOTICES.md).
 
 ## Capabilities
 
@@ -110,3 +153,5 @@ self-hosted implementations can be added in the future.
 ## License
 
 This project is licensed under the Apache-2.0 License. See [LICENSE](./LICENSE).
+
+Use of this software remains subject to the [disclaimer](./DISCLAIMER.md), applicable TikTok platform terms and the notices for third-party dependencies.

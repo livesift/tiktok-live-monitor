@@ -110,7 +110,7 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
     )
     .addHelpText(
       "after",
-      "\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n  tiktok-live-monitor @creator --webhook https://example.test/events --webhook-header \"Authorization: Bearer TOKEN\"\n",
+      '\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n  tiktok-live-monitor @creator --webhook https://example.test/events --webhook-header "Authorization: Bearer TOKEN"\n',
     )
     .allowExcessArguments(false)
     .exitOverride()
@@ -236,9 +236,7 @@ export async function runCli(
   if (webhookUrl !== undefined) {
     try {
       const endpoint =
-        configuration.webhook === undefined
-          ? resolveGatewayEventsEndpoint(webhookUrl)
-          : webhookUrl;
+        configuration.webhook === undefined ? resolveGatewayEventsEndpoint(webhookUrl) : webhookUrl;
       webhookSink = new WebhookEventSink(endpoint, {
         fetchImpl: options.gatewayFetch,
         headers: configuration.webhookHeaders,

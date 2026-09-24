@@ -2,10 +2,27 @@
   "name": "tiktok-live-monitor",
   "version": "0.1.0-alpha.1",
   "description": "TikTok Live Monitor can also be used as a real-time TikTok LIVE tracker for chat, gifts, viewers and engagement events.",
+  "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "tiktok-live-monitor": "dist/cli/index.js"
   },
+  "files": [
+    "dist",
+    "schemas",
+    "examples",
+    "README.md",
+    "README-zh.md",
+    "DISCLAIMER.md",
+    "DISCLAIMER-en.md",
+    "THIRD_PARTY_NOTICES.md",
+    "THIRD_PARTY_NOTICES-en.md",
+    "RELEASE_NOTES.md",
+    "RELEASE_NOTES-en.md",
+    "ALPHA_RELEASE_CHECKLIST.md",
+    "ALPHA_RELEASE_CHECKLIST-en.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -18,7 +35,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "release:check": "node scripts/release-check.mjs"
   },
   "dependencies": {
     "commander": "^12.1.0",
