@@ -15,6 +15,11 @@ export class MonitorError extends Error {
   }
 }
 
+function firstErrorLine(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(/\r?\n/, 1)[0]?.trim() ?? "";
+}
+
 export function normalizeMonitorError(
   error: unknown,
   fallbackCode: MonitorErrorCode = "CONNECTION_FAILED",
@@ -23,7 +28,7 @@ export function normalizeMonitorError(
     return error;
   }
 
-  const message = error instanceof Error ? error.message : String(error);
+  const message = firstErrorLine(error);
   return new MonitorError(fallbackCode, message || "The monitoring connection failed.", {
     cause: error,
   });

@@ -47,22 +47,30 @@ export class MonitorController {
 
     const version = ++this.lifecycleVersion;
     this.currentState = "connecting";
+    let providerConnected = false;
 
     const promise = this.provider
       .connect(username)
       .then((session) => {
+        providerConnected = true;
         if (version !== this.lifecycleVersion || this.currentState === "disconnected") {
-          void this.provider.disconnect().catch(() => undefined);
           throw new MonitorError(
             "CONNECTION_CANCELLED",
             "The monitoring connection was cancelled before it was established.",
           );
         }
 
-        if (session.roomId.trim() === "") {
+        if (typeof session.roomId !== "string" || session.roomId.trim() === "") {
           throw new MonitorError(
             "CONNECTION_FAILED",
             "The provider did not return a valid room ID.",
+          );
+        }
+
+        if (typeof session.sessionId !== "string" || session.sessionId.trim() === "") {
+          throw new MonitorError(
+            "CONNECTION_FAILED",
+            "The provider did not return a valid session ID.",
           );
         }
 
@@ -70,7 +78,10 @@ export class MonitorController {
         this.currentState = "connected";
         return session;
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
+        if (providerConnected && this.currentState !== "disconnected") {
+          await this.provider.disconnect().catch(() => undefined);
+        }
         if (version === this.lifecycleVersion) {
           this.currentSession = undefined;
           this.currentState = "disconnected";
@@ -92,8 +103,8 @@ export class MonitorController {
       return this.disconnectPromise;
     }
 
-    const shouldDisconnect =
-      this.currentState === "connecting" || this.currentState === "connected";
+    const wasConnecting = this.currentState === "connecting";
+    const shouldDisconnect = wasConnecting || this.currentState === "connected";
     this.lifecycleVersion += 1;
     this.currentSession = undefined;
     this.currentState = "disconnected";
@@ -102,8 +113,12 @@ export class MonitorController {
       return Promise.resolve();
     }
 
-    const promise = this.provider
-      .disconnect()
+    const connectPromise = wasConnecting ? this.connectPromise : undefined;
+    const disconnectOperation = connectPromise
+      ? connectPromise.catch(() => undefined).then(() => this.provider.disconnect())
+      : this.provider.disconnect();
+
+    const promise = Promise.resolve(disconnectOperation)
       .catch((error: unknown) => {
         throw normalizeMonitorError(error);
       })

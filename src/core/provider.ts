@@ -3,6 +3,7 @@ import type { LiveEvent } from "../events/types.js";
 export interface LiveSession {
   username: string;
   roomId: string;
+  sessionId: string;
 }
 
 export type ProviderEvent = LiveEvent;

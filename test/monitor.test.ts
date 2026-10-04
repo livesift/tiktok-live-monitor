@@ -8,7 +8,7 @@ class FakeProvider implements LiveProvider {
   connectCalls = 0;
   disconnectCalls = 0;
   connectError: unknown;
-  session: LiveSession = { username: "creator", roomId: "room-123" };
+  session: LiveSession = { username: "creator", roomId: "room-123", sessionId: "session-123" };
   private readonly handlers = new Set<ProviderEventHandler>();
 
   async connect(username: string): Promise<LiveSession> {
@@ -50,7 +50,11 @@ describe("MonitorController", () => {
 
     const result = await monitor.connect("@creator");
 
-    expect(result).toEqual({ username: "creator", roomId: "room-123" });
+    expect(result).toEqual({
+      username: "creator",
+      roomId: "room-123",
+      sessionId: "session-123",
+    });
     expect(monitor.state).toBe("connected");
     expect(monitor.session).toEqual(result);
     expect(provider.connectCalls).toBe(1);
@@ -80,6 +84,38 @@ describe("MonitorController", () => {
 
     expect(monitor.state).toBe("disconnected");
     expect(monitor.session).toBeUndefined();
+    expect(provider.disconnectCalls).toBe(1);
+  });
+
+  it("waits for a cancelled connection before disconnecting the provider once", async () => {
+    const provider = new FakeProvider();
+    let resolveConnection!: (session: LiveSession) => void;
+    const connection = new Promise<LiveSession>((resolve) => {
+      resolveConnection = resolve;
+    });
+    vi.spyOn(provider, "connect").mockImplementationOnce(async () => connection);
+    const monitor = new MonitorController(provider);
+
+    const connectPromise = monitor.connect("creator");
+    const disconnectPromise = monitor.disconnect();
+    resolveConnection(provider.session);
+
+    await expect(connectPromise).rejects.toMatchObject({ code: "CONNECTION_CANCELLED" });
+    await expect(disconnectPromise).resolves.toBeUndefined();
+    expect(provider.disconnectCalls).toBe(1);
+    expect(monitor.state).toBe("disconnected");
+  });
+
+  it("rejects a provider session without a session ID", async () => {
+    const provider = new FakeProvider();
+    provider.session = { username: "creator", roomId: "room-123", sessionId: "" };
+    const monitor = new MonitorController(provider);
+
+    await expect(monitor.connect("creator")).rejects.toMatchObject({
+      code: "CONNECTION_FAILED",
+      message: "The provider did not return a valid session ID.",
+    });
+    expect(monitor.state).toBe("disconnected");
     expect(provider.disconnectCalls).toBe(1);
   });
 

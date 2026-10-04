@@ -4,7 +4,7 @@
 
 > 非官方社区项目，与 TikTok 或 ByteDance 无隶属关系；Public CLI 不要求 LiveSift 账号或 Private Gateway。
 
-[English](./README.md) | 简体中文 | [免责声明](./DISCLAIMER.md) | [English Disclaimer](./DISCLAIMER-en.md) | [第三方说明](./THIRD_PARTY_NOTICES.md) | [English Third-party Notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha 发布说明](./RELEASE_NOTES.md) | [English Release Notes](./RELEASE_NOTES-en.md) | [发布清单](./ALPHA_RELEASE_CHECKLIST.md) | [English Checklist](./ALPHA_RELEASE_CHECKLIST-en.md)
+[English](./README.md) | 简体中文 | [免责声明](./DISCLAIMER.md) | [English Disclaimer](./DISCLAIMER-en.md) | [第三方说明](./THIRD_PARTY_NOTICES.md) | [English Third-party Notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha 发布说明](./RELEASE_NOTES.md) | [English Release Notes](./RELEASE_NOTES-en.md)
 
 ## 环境要求
 
@@ -24,7 +24,7 @@ npm run start -- --help
 npm run dev -- @username
 ```
 
-用户名可以带一个前导 `@`。CLI 会输出连接状态和直播间信息；主播未开播时会输出可读的离线提示。Public 流程不需要 LiveSift 登录、`LIVESIFT_GATEWAY_URL` 或 Private `/v1/events` endpoint。
+用户名可以带一个前导 `@`。CLI 会输出连接状态、直播间信息和由 lifecycle 事件共享的 session ID；主播未开播时会输出可读的离线提示。Public 流程不需要 LiveSift 登录、`LIVESIFT_GATEWAY_URL` 或 Private `/v1/events` endpoint。
 
 Alpha package 发布到 npm 后，可以在全新环境直接运行相同的 CLI：
 
@@ -118,7 +118,9 @@ npm run start -- --help   # 运行构建后的 CLI
 ## 故障排查
 
 - 主播离线是正常的 Public 结果。CLI 会输出离线提示并以非零状态退出，不会生成 lifecycle 事件。
-- 用户名、URL、Header 或输出路径无效时，CLI 会在连接 TikTok 前失败；请根据 stderr 中的用法和错误修正参数。
+- 用户名本地校验失败或 provider 无法解析用户名时，CLI 使用 `INVALID_USERNAME` 语义并在创建 LIVE session 前退出。
+- 网络、认证、房间解析或第三方 provider 失败时，CLI 使用 `CONNECTION_FAILED` 语义输出可读原因并以非零状态退出。
+- URL、Header 或输出路径无效时，CLI 会在连接 TikTok 前失败；请根据 stderr 中的用法和错误修正参数。
 - `--json` 模式下 stdout 只有 JSONL 事件，连接状态和诊断信息写入 stderr。
 - Webhook endpoint 不可用时采用 best-effort 语义：本地 Console/JSONL 继续输出；错误包含事件 ID 和最终原因，但不会记录 Header 值。
 - TikTok-Live-Connector 使用 Euler Stream 进行 WebSocket 签名。provider 的可用性和额度由独立第三方控制，详见[第三方说明](./THIRD_PARTY_NOTICES.md)。

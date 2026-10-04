@@ -4,7 +4,7 @@ An open-source TikTok LIVE tracker and real-time monitor for chat, gifts, viewer
 
 > Unofficial community project. It is not affiliated with TikTok or ByteDance, and it does not require a LiveSift account or Private Gateway.
 
-English | [简体中文](./README-zh.md) | [Disclaimer](./DISCLAIMER-en.md) | [Third-party notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha release notes](./RELEASE_NOTES-en.md) | [Release checklist](./ALPHA_RELEASE_CHECKLIST-en.md)
+English | [简体中文](./README-zh.md) | [Disclaimer](./DISCLAIMER-en.md) | [Third-party notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha release notes](./RELEASE_NOTES-en.md)
 
 ## Requirements
 
@@ -24,7 +24,7 @@ npm run start -- --help
 npm run dev -- @username
 ```
 
-The username may include a leading `@`. The CLI reports connection state and live room information, and shows a readable offline message when the creator is not live. A LiveSift login, `LIVESIFT_GATEWAY_URL`, or Private `/v1/events` endpoint is not required for this Public flow.
+The username may include a leading `@`. The CLI reports connection state, live room information, and the session ID shared by lifecycle events; it shows a readable offline message when the creator is not live. A LiveSift login, `LIVESIFT_GATEWAY_URL`, or Private `/v1/events` endpoint is not required for this Public flow.
 
 When the alpha package is available from npm, the same CLI can be started from a clean environment with:
 
@@ -117,7 +117,9 @@ npm run start -- --help   # Run the built CLI
 ## Troubleshooting
 
 - An offline creator is a valid Public result. The CLI prints an offline message and exits non-zero without emitting lifecycle events.
-- Invalid usernames, URLs, headers or output paths fail before a TikTok connection is attempted. Read the usage text on stderr and correct the argument.
+- A username that fails local validation or provider resolution is reported as `INVALID_USERNAME` and exits before a LIVE session is created.
+- Network, authentication, room-resolution, or third-party provider failures are reported as `CONNECTION_FAILED` with a readable reason and a non-zero exit.
+- Invalid URLs, headers or output paths fail before a TikTok connection is attempted. Read the usage text on stderr and correct the argument.
 - In `--json` mode stdout contains only JSONL events; connection status and diagnostics are written to stderr.
 - A Webhook outage is best-effort: local Console/JSONL output continues, while the endpoint error includes the event ID and final reason but never the Header value.
 - TikTok-Live-Connector uses Euler Stream for WebSocket signing. Provider availability and limits are controlled by independent third parties; see [third-party notices](./THIRD_PARTY_NOTICES.md).

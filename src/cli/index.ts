@@ -373,6 +373,7 @@ export async function runCli(
     statusWriter.write("LIVE detected\n");
     statusWriter.write("Connected.\n");
     statusWriter.write(`Room ID: ${session.roomId}\n`);
+    statusWriter.write(`Session ID: ${session.sessionId}\n`);
 
     if (!keepAlive) {
       requestShutdown(0);

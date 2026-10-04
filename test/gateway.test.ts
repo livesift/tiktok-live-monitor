@@ -19,7 +19,7 @@ class EmittingProvider implements LiveProvider {
 
   async connect(username: string): Promise<LiveSession> {
     this.handler?.(event);
-    return { username, roomId: "room-gateway-test" };
+    return { username, roomId: "room-gateway-test", sessionId: "session-gateway-test" };
   }
 
   async disconnect(): Promise<void> {}
@@ -63,7 +63,11 @@ class LifecycleProvider implements LiveProvider {
         reason: "stream_end",
       },
     });
-    return { username, roomId: "room-lifecycle-webhook" };
+    return {
+      username,
+      roomId: "room-lifecycle-webhook",
+      sessionId: "session-lifecycle-webhook",
+    };
   }
 
   async disconnect(): Promise<void> {}

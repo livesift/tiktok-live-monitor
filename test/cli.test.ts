@@ -13,7 +13,11 @@ class FakeProvider implements LiveProvider {
   disconnectCalls = 0;
   connectError: unknown;
   emitSessionEnd = false;
-  private readonly session: LiveSession = { username: "creator", roomId: "room-cli" };
+  private readonly session: LiveSession = {
+    username: "creator",
+    roomId: "room-cli",
+    sessionId: "session-cli",
+  };
   private readonly handlers = new Set<ProviderEventHandler>();
 
   async connect(username: string): Promise<LiveSession> {
@@ -192,6 +196,7 @@ describe("runCli", () => {
     expect(stdout.value()).toContain("LIVE detected\n");
     expect(stdout.value()).toContain("Connected.\n");
     expect(stdout.value()).toContain("Room ID: room-cli\n");
+    expect(stdout.value()).toContain("Session ID: session-cli\n");
     expect(stderr.value()).toBe("");
   });
 
@@ -258,6 +263,46 @@ describe("runCli", () => {
 
     expect(exitCode).toBe(1);
     expect(stderr.value()).toBe("@creator is currently offline.\n");
+    expect(stderr.value()).not.toContain("at ");
+  });
+
+  it("prints an invalid provider username error with a non-zero exit code", async () => {
+    const provider = new FakeProvider();
+    provider.connectError = new MonitorError(
+      "INVALID_USERNAME",
+      "Unable to recognize TikTok username @creator.",
+    );
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator"], {
+      provider,
+      stdout: createWriter(),
+      stderr,
+      keepAlive: false,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.value()).toBe("Unable to recognize TikTok username @creator.\n");
+    expect(stderr.value()).not.toContain("at ");
+  });
+
+  it("prints a connection failure with a non-zero exit code and no stack trace", async () => {
+    const provider = new FakeProvider();
+    provider.connectError = new MonitorError(
+      "CONNECTION_FAILED",
+      "Unable to connect to @creator: socket closed",
+    );
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator"], {
+      provider,
+      stdout: createWriter(),
+      stderr,
+      keepAlive: false,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.value()).toBe("Unable to connect to @creator: socket closed\n");
     expect(stderr.value()).not.toContain("at ");
   });
 
@@ -340,9 +385,13 @@ describe("runCli", () => {
       "session_started",
       "session_ended",
     ]);
+    expect(new Set(lines.map((line) => JSON.parse(line).session.id))).toEqual(
+      new Set(["session-cli"]),
+    );
     expect(stdout.value()).not.toContain("Connecting");
     expect(stderr.value()).toContain("Connecting to @creator...\n");
     expect(stderr.value()).toContain("Room ID: room-cli\n");
+    expect(stderr.value()).toContain("Session ID: session-cli\n");
   });
 
   it("writes byte-equivalent JSONL to stdout and --output", async () => {

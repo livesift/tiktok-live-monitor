@@ -8,7 +8,10 @@ export function getWebcastEventNames(): string[] {
   return Object.values(WebcastEvent).map((event) => String(event));
 }
 
-export function normalizeLiveSession(username: string, roomId: string | number): LiveSession {
+export function normalizeLiveSession(
+  username: string,
+  roomId: string | number,
+): Pick<LiveSession, "username" | "roomId"> {
   const normalizedRoomId = String(roomId).trim();
 
   if (normalizedRoomId === "") {
@@ -27,9 +30,8 @@ export function normalizeProviderEvent(
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message !== ""
-    ? error.message
-    : "Unknown connection error.";
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(/\r?\n/, 1)[0]?.trim() || "Unknown connection error.";
 }
 
 export function normalizeTikTokError(error: unknown, username: string): MonitorError {

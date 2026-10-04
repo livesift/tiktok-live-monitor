@@ -58,8 +58,6 @@ if (packageJson === undefined) {
     "THIRD_PARTY_NOTICES-en.md",
     "RELEASE_NOTES.md",
     "RELEASE_NOTES-en.md",
-    "ALPHA_RELEASE_CHECKLIST.md",
-    "ALPHA_RELEASE_CHECKLIST-en.md",
     "LICENSE",
   ];
   assert(
@@ -78,8 +76,6 @@ for (const relativePath of [
   "THIRD_PARTY_NOTICES-en.md",
   "RELEASE_NOTES.md",
   "RELEASE_NOTES-en.md",
-  "ALPHA_RELEASE_CHECKLIST.md",
-  "ALPHA_RELEASE_CHECKLIST-en.md",
   "LICENSE",
   "schemas/live-event.schema.json",
   "schemas/fixtures/manifest.json",
@@ -103,14 +99,12 @@ const languageReadmeTokens = {
     "DISCLAIMER-en.md",
     "THIRD_PARTY_NOTICES-en.md",
     "RELEASE_NOTES-en.md",
-    "ALPHA_RELEASE_CHECKLIST-en.md",
     "examples/README-en.md",
   ],
   "README-zh.md": [
     "DISCLAIMER.md",
     "THIRD_PARTY_NOTICES.md",
     "RELEASE_NOTES.md",
-    "ALPHA_RELEASE_CHECKLIST.md",
     "examples/README.md",
   ],
 };

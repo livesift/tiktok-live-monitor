@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { UserOfflineError, WebcastEvent } from "tiktok-live-connector";
+import { InvalidUniqueIdError, UserOfflineError, WebcastEvent } from "tiktok-live-connector";
 import { TikTokLiveConnectorProvider } from "../src/providers/tiktok-live-connector/provider.js";
 
 class FakeTikTokClient {
@@ -33,9 +33,21 @@ describe("TikTokLiveConnectorProvider", () => {
     await expect(provider.connect("@creator")).resolves.toEqual({
       username: "creator",
       roomId: "room-456",
+      sessionId: expect.any(String),
     });
     expect(clientFactory).toHaveBeenCalledWith("creator");
     expect(client.connect).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a malformed username before creating a provider client", async () => {
+    const clientFactory = vi.fn(() => new FakeTikTokClient());
+    const provider = new TikTokLiveConnectorProvider({ clientFactory });
+
+    await expect(provider.connect("creator name")).rejects.toMatchObject({
+      code: "INVALID_USERNAME",
+      message: "Username must be 1-24 letters, numbers, dots, underscores, or hyphens.",
+    });
+    expect(clientFactory).not.toHaveBeenCalled();
   });
 
   it("maps the provider offline error to a domain error", async () => {
@@ -51,9 +63,24 @@ describe("TikTokLiveConnectorProvider", () => {
     });
   });
 
+  it("maps an unrecognized provider username to a domain error", async () => {
+    const client = new FakeTikTokClient();
+    client.connect.mockRejectedValueOnce(new InvalidUniqueIdError("not found"));
+    const clientFactory = vi.fn(() => client);
+    const provider = new TikTokLiveConnectorProvider({ clientFactory });
+
+    await expect(provider.connect("creator")).rejects.toMatchObject({
+      code: "INVALID_USERNAME",
+      message: "Unable to recognize TikTok username @creator.",
+    });
+    expect(clientFactory).toHaveBeenCalledWith("creator");
+  });
+
   it("maps unknown provider failures to a readable connection error", async () => {
     const client = new FakeTikTokClient();
-    client.connect.mockRejectedValueOnce(new Error("socket closed"));
+    client.connect.mockRejectedValueOnce(
+      new Error("socket closed\n    at hiddenConnection (secret.ts:1:1)"),
+    );
     const provider = new TikTokLiveConnectorProvider({
       clientFactory: () => client,
     });
@@ -64,6 +91,41 @@ describe("TikTokLiveConnectorProvider", () => {
     });
   });
 
+  it("does not emit lifecycle events when the room ID is invalid and cleans up the client", async () => {
+    const client = new FakeTikTokClient();
+    client.connect.mockResolvedValueOnce({ roomId: "" });
+    const provider = new TikTokLiveConnectorProvider({ clientFactory: () => client });
+    const handler = vi.fn();
+
+    provider.onEvent(handler);
+    await expect(provider.connect("creator")).rejects.toMatchObject({
+      code: "CONNECTION_FAILED",
+      message: "The provider did not return a valid room ID.",
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalledOnce();
+    await provider.disconnect();
+    expect(client.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("normalizes disconnect failures and keeps repeated disconnects idempotent", async () => {
+    const client = new FakeTikTokClient();
+    client.disconnect.mockRejectedValueOnce(
+      new Error("socket closed\n    at hiddenCleanup (secret.ts:1:1)"),
+    );
+    const provider = new TikTokLiveConnectorProvider({ clientFactory: () => client });
+
+    await provider.connect("creator");
+    await expect(provider.disconnect()).rejects.toMatchObject({
+      code: "CONNECTION_FAILED",
+      message: "Unable to connect to @creator: socket closed",
+    });
+    await provider.disconnect();
+
+    expect(client.disconnect).toHaveBeenCalledOnce();
+  });
+
   it("converts provider events to the provider-independent event shape", async () => {
     const client = new FakeTikTokClient();
     const provider = new TikTokLiveConnectorProvider({
@@ -72,8 +134,10 @@ describe("TikTokLiveConnectorProvider", () => {
     const handler = vi.fn();
 
     provider.onEvent(handler);
-    await provider.connect("creator");
+    const connected = await provider.connect("creator");
     const startedSessionId = handler.mock.calls[0]?.[0].session.id;
+    expect(startedSessionId).toEqual(expect.any(String));
+    expect(connected.sessionId).toBe(startedSessionId);
     handler.mockClear();
     client.emit(WebcastEvent.CHAT, {
       common: { createTime: "1726794123000" },

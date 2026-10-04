@@ -69,9 +69,11 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
     const client = this.clientFactory(normalizedUsername);
     this.client = client;
     this.username = normalizedUsername;
+    let clientConnected = false;
 
     try {
       const state = await client.connect();
+      clientConnected = true;
       const session = normalizeLiveSession(normalizedUsername, state.roomId);
       const startedEvent = this.lifecycle.start({
         roomId: session.roomId,
@@ -84,12 +86,15 @@ export class TikTokLiveConnectorProvider implements LiveProvider {
       this.liveEventContext = context;
       this.attachClientEvents(client);
       this.emitEvent(startedEvent);
-      return session;
+      return { ...session, sessionId: startedEvent.session.id };
     } catch (error) {
       this.detachClientEvents();
       this.client = undefined;
       this.username = undefined;
       this.liveEventContext = undefined;
+      if (clientConnected) {
+        await client.disconnect().catch(() => undefined);
+      }
       throw normalizeTikTokError(error, normalizedUsername);
     }
   }
