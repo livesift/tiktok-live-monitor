@@ -7,11 +7,17 @@ import { MonitorError, normalizeMonitorError } from "../core/errors.js";
 import { installSignalHandlers, MonitorController, type SignalSource } from "../core/monitor.js";
 import type { LiveProvider } from "../core/provider.js";
 import { normalizeCreatorUsername } from "../core/username.js";
-import type { LiveEvent } from "../events/types.js";
 import { gatewayUrlFromEnvironment, resolveGatewayEventsEndpoint } from "../events/gateway.js";
 import { TikTokLiveConnectorProvider } from "../providers/tiktok-live-connector/provider.js";
+import { SessionStats } from "./session-stats.js";
 import {
-  ConsoleSink,
+  formatSessionSummary,
+  summaryStatusForEndReason,
+  TerminalRenderer,
+} from "./terminal-renderer.js";
+import type { SessionSummaryStatus } from "./terminal-renderer.js";
+export { formatLiveEvent } from "./terminal-renderer.js";
+import {
   JsonlSink,
   OutputCoordinator,
   QueuedWritableSink,
@@ -26,6 +32,7 @@ import {
 
 export interface CliWriter {
   write(message: string): unknown;
+  isTTY?: boolean;
   once?: WritableStreamLike["once"];
   off?: WritableStreamLike["off"];
   end?: WritableStreamLike["end"];
@@ -50,42 +57,6 @@ export interface CliOptions {
 }
 
 const usage = "Usage: tiktok-live-monitor <username>";
-
-function actorLabel(event: LiveEvent): string {
-  return event.actor?.username ?? event.actor?.nickname ?? event.actor?.userId ?? "unknown";
-}
-
-function eventTime(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "--:--:--" : date.toISOString().slice(11, 19);
-}
-
-function count(value: number | undefined): string {
-  return value === undefined ? "-" : value.toLocaleString("en-US");
-}
-
-export function formatLiveEvent(event: LiveEvent): string {
-  const prefix = `[${eventTime(event.occurredAt)}]`;
-
-  switch (event.type) {
-    case "session_started":
-      return `${prefix} SESSION STARTED\n`;
-    case "session_ended":
-      return `${prefix} SESSION ENDED\n`;
-    case "comment":
-      return `${prefix} COMMENT ${actorLabel(event)}: ${event.data.text}\n`;
-    case "gift":
-      return `${prefix} GIFT ${actorLabel(event)}: ${event.data.giftName ?? "Gift"} x${count(event.data.count)}\n`;
-    case "like":
-      return `${prefix} LIKES ${actorLabel(event)}: +${count(event.data.count)} (total ${count(event.data.total)})\n`;
-    case "viewer_count":
-      return `${prefix} VIEWERS ${event.data.viewerCount.toLocaleString("en-US")}\n`;
-    case "follow":
-      return `${prefix} FOLLOW ${actorLabel(event)}\n`;
-    case "share":
-      return `${prefix} SHARE ${actorLabel(event)}\n`;
-  }
-}
 
 type CliParseResult = CliConfiguration | { help: string };
 
@@ -265,10 +236,15 @@ export async function runCli(
 
   const provider = options.provider ?? new TikTokLiveConnectorProvider();
   const stdoutTextSink = createWriterTextSink(stdout);
+  const sessionStats = new SessionStats();
+  const terminalRenderer = configuration.json
+    ? undefined
+    : new TerminalRenderer(stdoutTextSink, {
+        stats: sessionStats,
+        interactive: stdout.isTTY === true,
+      });
   const eventSinks: EventSink[] = [
-    configuration.json
-      ? new JsonlSink(stdoutTextSink)
-      : new ConsoleSink(stdoutTextSink, formatLiveEvent),
+    configuration.json ? new JsonlSink(stdoutTextSink) : terminalRenderer!,
   ];
   if (outputFile !== undefined) {
     eventSinks.push(new JsonlSink(outputFile.sink));
@@ -293,6 +269,7 @@ export async function runCli(
   let signalRequested = false;
   let outputFailureReported = false;
   let finalizePromise: Promise<number> | undefined;
+  let summaryStatus: SessionSummaryStatus = "completed";
   const monitor = new MonitorController(provider);
 
   const requestShutdown = (code: number, failure?: unknown): void => {
@@ -315,6 +292,15 @@ export async function runCli(
   };
 
   monitor.onEvent((event) => {
+    if (configuration.json) {
+      const isNewEvent = sessionStats.add(event);
+      if (isNewEvent && event.type === "session_ended") {
+        summaryStatus = summaryStatusForEndReason(event.data.reason);
+      }
+    } else if (event.type === "session_ended") {
+      summaryStatus = summaryStatusForEndReason(event.data.reason);
+    }
+
     const output = outputCoordinator.write(event);
     pendingOutputEvents.add(output);
     void output
@@ -349,8 +335,24 @@ export async function runCli(
       } catch (error) {
         shutdownCode = 1;
         stderr.write(`${normalizeMonitorError(error).message}\n`);
+        summaryStatus = "failed";
       }
       await flushOutputEvents();
+      const finalStatus: SessionSummaryStatus =
+        shutdownCode === 1 ? "failed" : signalRequested ? "interrupted" : summaryStatus;
+      try {
+        if (terminalRenderer !== undefined) {
+          await terminalRenderer.finalize(finalStatus);
+        } else if (sessionStats.snapshot().sessionId !== null) {
+          stderr.write(formatSessionSummary(sessionStats.snapshot(), finalStatus));
+        }
+      } catch (error) {
+        shutdownCode = 1;
+        if (!outputFailureReported) {
+          outputFailureReported = true;
+          stderr.write(`Output error: ${errorMessage(error)}\n`);
+        }
+      }
       try {
         await outputCoordinator.close();
       } catch (error) {
@@ -370,10 +372,17 @@ export async function runCli(
 
   try {
     const session = await monitor.connect(configuration.username);
-    statusWriter.write("LIVE detected\n");
-    statusWriter.write("Connected.\n");
-    statusWriter.write(`Room ID: ${session.roomId}\n`);
-    statusWriter.write(`Session ID: ${session.sessionId}\n`);
+    if (terminalRenderer !== undefined) {
+      terminalRenderer.bindSession(session.username, session.sessionId, session.roomId);
+    } else {
+      sessionStats.bindSession(session.sessionId);
+    }
+    if (configuration.json || stdout.isTTY !== true) {
+      statusWriter.write("LIVE detected\n");
+      statusWriter.write("Connected.\n");
+      statusWriter.write(`Room ID: ${session.roomId}\n`);
+      statusWriter.write(`Session ID: ${session.sessionId}\n`);
+    }
 
     if (!keepAlive) {
       requestShutdown(0);

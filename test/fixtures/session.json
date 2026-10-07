@@ -17,6 +17,23 @@
     }
   },
   {
+    "id": "fixture-viewers-start",
+    "platform": "tiktok",
+    "type": "viewer_count",
+    "occurredAt": "2026-09-21T10:00:02.000Z",
+    "receivedAt": "2026-09-21T10:00:02.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "data": {
+      "viewerCount": 1200
+    }
+  },
+  {
     "id": "fixture-comment",
     "platform": "tiktok",
     "type": "comment",
@@ -78,6 +95,66 @@
     "data": {
       "viewerCount": 1842
     }
+  },
+  {
+    "id": "fixture-like",
+    "platform": "tiktok",
+    "type": "like",
+    "occurredAt": "2026-09-21T10:00:25.000Z",
+    "receivedAt": "2026-09-21T10:00:25.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "actor": {
+      "userId": "viewer-3",
+      "username": "viewer_three"
+    },
+    "data": {
+      "count": 10,
+      "total": 100
+    }
+  },
+  {
+    "id": "fixture-follow",
+    "platform": "tiktok",
+    "type": "follow",
+    "occurredAt": "2026-09-21T10:00:30.000Z",
+    "receivedAt": "2026-09-21T10:00:30.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "actor": {
+      "userId": "viewer-4",
+      "username": "viewer_four"
+    },
+    "data": {}
+  },
+  {
+    "id": "fixture-share",
+    "platform": "tiktok",
+    "type": "share",
+    "occurredAt": "2026-09-21T10:00:35.000Z",
+    "receivedAt": "2026-09-21T10:00:35.100Z",
+    "session": {
+      "id": "session-fixture-1",
+      "roomId": "room-fixture-1"
+    },
+    "creator": {
+      "username": "fixture_creator"
+    },
+    "actor": {
+      "userId": "viewer-5",
+      "username": "viewer_five"
+    },
+    "data": {}
   },
   {
     "id": "fixture-ended",

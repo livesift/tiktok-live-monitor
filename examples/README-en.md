@@ -4,12 +4,26 @@ This directory and the adjacent `schemas/` and `test/fixtures/` directories prov
 
 ## Session JSONL
 
-`session.jsonl` is a deterministic five-line session example containing `session_started`, `comment`, `gift`, `viewer_count`, and `session_ended` in that order. Each line is an independent `LiveEvent` object sharing the same `session.id`.
+`session.jsonl` is a deterministic nine-line session example containing `session_started`, two `viewer_count` samples, `comment`, `gift`, `like`, `follow`, `share`, and `session_ended`. Each line is an independent `LiveEvent` object sharing the same `session.id`.
 
 ```bash
 jq -e . examples/session.jsonl >/dev/null
 npm test -- --run test/session-fixture.test.ts test/live-event-contract.test.ts
 ```
+
+## Terminal Demo
+
+`terminal-demo.txt` is a line-oriented preview from the production `TerminalRenderer`; `terminal-demo.cast` is the matching asciinema v2 capture with an approximately 18-second duration. Replay or regenerate the assets with:
+
+```bash
+npm run demo:terminal
+npm run demo:terminal:preview
+npm run demo:terminal:record
+```
+
+Playback uses only `session.jsonl`; it does not access the network, a real LIVE, a LiveSift account, or Private Gateway. The capture records package version `0.1.0-alpha.1`.
+
+The fixture replay stdout/stderr, JSONL, Webhook mock, and duration evidence is recorded in [`terminal-demo-verification.md`](./terminal-demo-verification.md).
 
 ## Schema Fixtures
 

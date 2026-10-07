@@ -78,6 +78,22 @@ npm test -- --run test/session-fixture.test.ts test/live-event-contract.test.ts
 
 See [`examples/README-en.md`](./examples/README-en.md) for the fixture, schema and Webhook validation map.
 
+## Offline terminal demo
+
+Replay the checked-in fixture through the production terminal renderer without connecting to TikTok, a Webhook, or any LiveSift service:
+
+```bash
+npm run demo:terminal
+npm run demo:terminal:preview
+npm run demo:terminal:record
+```
+
+Playback takes about 18 seconds. The static [text preview](./examples/terminal-demo.txt) is portable to files and non-interactive terminals; the [asciinema v2 capture](./examples/terminal-demo.cast) can be played with `asciinema play examples/terminal-demo.cast`. The record command regenerates both files from [`examples/session.jsonl`](./examples/session.jsonl). These checked-in assets are versioned for package `0.1.0-alpha.1` and use only synthetic fixture identities.
+
+The fixture replay and CLI sink acceptance results are recorded in [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md).
+
+The demo verifies renderer behavior, not provider connectivity. A real LIVE connection uses TikTok-Live-Connector and its Euler Stream signing service, whose availability and protocol compatibility are controlled by third parties. No Web UI, LiveSift account, or Private Gateway is used by the demo. Current viewer uses the latest valid `occurredAt` timestamp, so an older event received later does not move the displayed value backward; peak viewer remains the highest valid sample. Renderer panels and summaries stay in human-readable output and never enter JSONL files or Webhook payloads.
+
 ## Webhook integration
 
 Send the same normalized `LiveEvent` payload to any HTTP or HTTPS endpoint:

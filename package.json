@@ -26,6 +26,9 @@
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts",
+    "demo:terminal": "tsx scripts/terminal-demo.ts",
+    "demo:terminal:record": "tsx scripts/terminal-demo.ts --record",
+    "demo:terminal:preview": "tsx scripts/terminal-demo.ts --preview",
     "build": "tsup --format esm --dts --clean",
     "start": "node dist/cli/index.js",
     "test": "vitest run",

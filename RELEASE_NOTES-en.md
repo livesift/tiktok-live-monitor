@@ -7,6 +7,7 @@ This Public OSS alpha release lets users connect to a public TikTok LIVE without
 - Node.js 20+ TypeScript CLI with the `tiktok-live-monitor` binary
 - Human-readable Console output, JSONL stdout through `--json`, and file output through `--output <path>`
 - Normalized `LiveEvent` envelopes, session lifecycle events, and deterministic JSONL/schema fixtures
+- Stateful terminal renderer, one-time session summary, and a network-free terminal demo
 - Generic Webhook `POST`, repeatable custom headers, up to three attempts per event, and exponential backoff
 - Best-effort Webhook failures: diagnostics are reported without stopping local output or subsequent LIVE events
 - Apache-2.0 project license with separate disclaimer and third-party notices
@@ -18,6 +19,20 @@ This Public OSS alpha release lets users connect to a public TikTok LIVE without
 - Webhook delivery is best-effort HTTP delivery. Events may be lost when an endpoint is unavailable, and diagnostics never include Header values.
 - Public CLI users must follow TikTok platform terms, privacy requirements, and applicable law. The project does not represent TikTok or ByteDance.
 - Real TikTok LIVE smoke results depend on creator availability and third-party provider health and are not a stability guarantee for offline CI.
+
+## Offline Terminal Demo
+
+Run or refresh the fixture replay from a source checkout with Node.js 20+:
+
+```bash
+npm run demo:terminal
+npm run demo:terminal:preview
+npm run demo:terminal:record
+```
+
+Playback takes about 18 seconds and consumes only the synthetic `examples/session.jsonl` fixture. It does not connect to TikTok, a Webhook, LiveSift, or Private Gateway, and requires no Web UI or LiveSift account. The [text preview](./examples/terminal-demo.txt) and [asciinema v2 capture](./examples/terminal-demo.cast) correspond to package `0.1.0-alpha.1`; play the capture with `asciinema play examples/terminal-demo.cast`. The demo verifies the renderer, not the availability of third-party providers such as TikTok-Live-Connector or Euler Stream. Current viewer follows the latest valid `occurredAt` timestamp, and terminal summaries are not written to JSONL or Webhook payloads.
+
+Fixture replay and CLI sink acceptance results are recorded in [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md).
 
 ## Verification Before Tagging
 

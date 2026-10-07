@@ -78,6 +78,22 @@ npm test -- --run test/session-fixture.test.ts test/live-event-contract.test.ts
 
 参见 [`examples/README.md`](./examples/README.md) 或 [`examples/README-en.md`](./examples/README-en.md)，了解 fixture、schema 和 Webhook 的验证对应关系。
 
+## 离线终端 Demo
+
+项目根目录运行以下命令，可使用正式的终端 renderer 回放仓库 fixture；过程不会连接 TikTok、Webhook 或 LiveSift 服务：
+
+```bash
+npm run demo:terminal
+npm run demo:terminal:preview
+npm run demo:terminal:record
+```
+
+回放约 18 秒。[静态文本预览](./examples/terminal-demo.txt) 可在文件或非交互式终端中查看；[asciinema v2 capture](./examples/terminal-demo.cast) 可用 `asciinema play examples/terminal-demo.cast` 播放。record 命令会根据 [`examples/session.jsonl`](./examples/session.jsonl) 重新生成这两个文件。当前 capture 与文本预览对应 package `0.1.0-alpha.1`，只使用合成 fixture 身份。
+
+Fixture 回放和 CLI sink 的验收结果记录在 [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md)。
+
+该 Demo 验证 renderer 行为，不验证真实 provider 连通性。真实 LIVE 连接使用 TikTok-Live-Connector 和它所依赖的 Euler Stream 签名服务，服务可用性与协议兼容由第三方控制。Demo 不需要 Web UI、LiveSift 账号或 Private Gateway。当前 viewer 取最新有效 `occurredAt` 时间的样本，因此较旧但较晚收到的事件不会让显示值回退；peak viewer 始终是有效样本中的最大值。Renderer 状态面板和摘要只属于人类可读输出，不会写进 JSONL 文件或 Webhook payload。
+
 ## Webhook 集成
 
 可以把同一份规范化 `LiveEvent` 发送到任意 HTTP 或 HTTPS endpoint：

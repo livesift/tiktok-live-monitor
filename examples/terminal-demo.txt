@@ -1,0 +1,29 @@
+[10:00:00] SESSION STARTED
+LIVE @fixture_creator | VIEWERS -- | PEAK 0 | COMMENTS 0 | GIFTS 0 | LIKES 0 | FOLLOWS 0 | SHARES 0
+[10:00:02] VIEWERS 1,200
+LIVE @fixture_creator | VIEWERS 1,200 | PEAK 1,200 | COMMENTS 0 | GIFTS 0 | LIKES 0 | FOLLOWS 0 | SHARES 0
+[10:00:05] COMMENT viewer_one: Hello from the fixture
+LIVE @fixture_creator | VIEWERS 1,200 | PEAK 1,200 | COMMENTS 1 | GIFTS 0 | LIKES 0 | FOLLOWS 0 | SHARES 0
+[10:00:10] GIFT viewer_two: Rose x2
+LIVE @fixture_creator | VIEWERS 1,200 | PEAK 1,200 | COMMENTS 1 | GIFTS 1 | LIKES 0 | FOLLOWS 0 | SHARES 0
+[10:00:20] VIEWERS 1,842
+LIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 0 | FOLLOWS 0 | SHARES 0
+[10:00:25] LIKES viewer_three: +10 (total 100)
+LIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 0 | SHARES 0
+[10:00:30] FOLLOW viewer_four
+LIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 1 | SHARES 0
+[10:00:35] SHARE viewer_five
+LIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 1 | SHARES 1
+[10:01:00] SESSION ENDED
+ENDED @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 1 | SHARES 1
+SESSION SUMMARY
+Session ID: session-fixture-1
+Status: completed
+Comments: 1
+Gifts: 1
+Likes: 1
+Follows: 1
+Shares: 1
+Viewer samples: 2
+Current viewers: 1,842
+Peak viewers: 1842

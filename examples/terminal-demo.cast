@@ -1,0 +1,10 @@
+{"version":2,"width":160,"height":40,"timestamp":0,"env":{"SHELL":"/bin/sh","TERM":"dumb"},"title":"tiktok-live-monitor terminal demo v0.1.0-alpha.1","packageVersion":"0.1.0-alpha.1"}
+[0,"o","[10:00:00] SESSION STARTED\nLIVE @fixture_creator | VIEWERS -- | PEAK 0 | COMMENTS 0 | GIFTS 0 | LIKES 0 | FOLLOWS 0 | SHARES 0\n"]
+[2.25,"o","[10:00:02] VIEWERS 1,200\nLIVE @fixture_creator | VIEWERS 1,200 | PEAK 1,200 | COMMENTS 0 | GIFTS 0 | LIKES 0 | FOLLOWS 0 | SHARES 0\n"]
+[4.5,"o","[10:00:05] COMMENT viewer_one: Hello from the fixture\nLIVE @fixture_creator | VIEWERS 1,200 | PEAK 1,200 | COMMENTS 1 | GIFTS 0 | LIKES 0 | FOLLOWS 0 | SHARES 0\n"]
+[6.75,"o","[10:00:10] GIFT viewer_two: Rose x2\nLIVE @fixture_creator | VIEWERS 1,200 | PEAK 1,200 | COMMENTS 1 | GIFTS 1 | LIKES 0 | FOLLOWS 0 | SHARES 0\n"]
+[9,"o","[10:00:20] VIEWERS 1,842\nLIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 0 | FOLLOWS 0 | SHARES 0\n"]
+[11.25,"o","[10:00:25] LIKES viewer_three: +10 (total 100)\nLIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 0 | SHARES 0\n"]
+[13.5,"o","[10:00:30] FOLLOW viewer_four\nLIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 1 | SHARES 0\n"]
+[15.75,"o","[10:00:35] SHARE viewer_five\nLIVE @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 1 | SHARES 1\n"]
+[18,"o","[10:01:00] SESSION ENDED\nENDED @fixture_creator | VIEWERS 1,842 | PEAK 1,842 | COMMENTS 1 | GIFTS 1 | LIKES 1 | FOLLOWS 1 | SHARES 1\nSESSION SUMMARY\nSession ID: session-fixture-1\nStatus: completed\nComments: 1\nGifts: 1\nLikes: 1\nFollows: 1\nShares: 1\nViewer samples: 2\nCurrent viewers: 1,842\nPeak viewers: 1842\n"]

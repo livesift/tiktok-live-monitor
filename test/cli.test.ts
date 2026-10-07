@@ -13,6 +13,7 @@ class FakeProvider implements LiveProvider {
   disconnectCalls = 0;
   connectError: unknown;
   emitSessionEnd = false;
+  duplicateSessionEnd = false;
   private readonly session: LiveSession = {
     username: "creator",
     roomId: "room-cli",
@@ -52,6 +53,18 @@ class FakeProvider implements LiveProvider {
             reason: "stream_end",
           },
         });
+        if (this.duplicateSessionEnd) {
+          handler({
+            ...base,
+            id: "event-ended-duplicate",
+            type: "session_ended",
+            data: {
+              startedAt: "2026-09-20T01:00:00Z",
+              endedAt: "2026-09-20T02:00:00Z",
+              reason: "stream_end",
+            },
+          });
+        }
       }
     }
     return session;
@@ -66,9 +79,9 @@ class FakeProvider implements LiveProvider {
   }
 }
 
-function createWriter() {
+function createWriter(isTTY?: boolean) {
   const write = vi.fn<(message: string) => void>();
-  return { write, value: () => write.mock.calls.map(([message]) => message).join("") };
+  return { write, value: () => write.mock.calls.map(([message]) => message).join(""), isTTY };
 }
 
 describe("runCli", () => {
@@ -197,7 +210,50 @@ describe("runCli", () => {
     expect(stdout.value()).toContain("Connected.\n");
     expect(stdout.value()).toContain("Room ID: room-cli\n");
     expect(stdout.value()).toContain("Session ID: session-cli\n");
+    expect(stdout.value()).toContain("SESSION SUMMARY\n");
+    expect(stdout.value()).toContain("Status: completed\n");
+    expect(stdout.value()).toContain("Comments: 0\n");
+    expect(stdout.value()).not.toContain(String.fromCharCode(27));
     expect(stderr.value()).toBe("");
+  });
+
+  it("renders a TTY dashboard instead of duplicate connection status lines", async () => {
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter(true);
+
+    const exitCode = await runCli(["creator"], {
+      provider,
+      stdout,
+      stderr: createWriter(),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout.value()).toContain("\u001b[2J\u001b[H");
+    expect(stdout.value()).toContain("LIVE @creator");
+    expect(stdout.value()).toContain("Room ID: room-cli");
+    expect(stdout.value()).toContain("SESSION SUMMARY");
+    expect(stdout.value()).not.toContain("LIVE detected\n");
+    expect(stdout.value()).not.toContain("Connected.\n");
+  });
+
+  it("prints one summary for an empty session when keepAlive is disabled", async () => {
+    const stdout = createWriter();
+    const provider = new FakeProvider();
+
+    const exitCode = await runCli(["creator"], {
+      provider,
+      stdout,
+      stderr: createWriter(),
+      keepAlive: false,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(provider.connectCalls).toBe(1);
+    expect(provider.disconnectCalls).toBe(1);
+    expect(stdout.value().match(/SESSION SUMMARY/g)).toHaveLength(1);
+    expect(stdout.value()).toContain("Session ID: session-cli\n");
+    expect(stdout.value()).toContain("Status: completed\n");
   });
 
   it("rejects missing and extra username arguments without connecting", async () => {
@@ -306,7 +362,7 @@ describe("runCli", () => {
     expect(stderr.value()).not.toContain("at ");
   });
 
-  it("disconnects and exits after SIGINT", async () => {
+  it.each(["SIGINT", "SIGTERM"] as const)("disconnects and exits after %s", async (signal) => {
     const provider = new FakeProvider();
     const source = new EventEmitter();
     const stdout = createWriter();
@@ -319,16 +375,19 @@ describe("runCli", () => {
     });
 
     await vi.waitFor(() => expect(stdout.value()).toContain("Connected.\n"));
-    source.emit("SIGINT");
+    source.emit(signal);
 
     await expect(run).resolves.toBe(0);
     expect(provider.disconnectCalls).toBe(1);
     expect(stdout.value()).toContain("Disconnected.\n");
+    expect(stdout.value()).toContain("Status: interrupted\n");
+    expect(stdout.value().match(/SESSION SUMMARY/g)).toHaveLength(1);
   });
 
   it("exits when the provider emits session_ended", async () => {
     const provider = new FakeProvider();
     provider.emitSessionEnd = true;
+    provider.duplicateSessionEnd = true;
     const stdout = createWriter();
 
     await expect(
@@ -341,7 +400,9 @@ describe("runCli", () => {
     ).resolves.toBe(0);
 
     expect(provider.disconnectCalls).toBe(1);
-    expect(stdout.value()).toContain("SESSION ENDED\n");
+    expect(stdout.value().match(/SESSION ENDED/g)).toHaveLength(1);
+    expect(stdout.value().match(/SESSION SUMMARY/g)).toHaveLength(1);
+    expect(stdout.value()).toContain("Status: completed\n");
   });
 
   it("keeps human output while writing JSONL to --output", async () => {
@@ -365,6 +426,34 @@ describe("runCli", () => {
       "session_started",
       "session_ended",
     ]);
+    expect(lines.join("\n")).not.toContain("SESSION SUMMARY");
+  });
+
+  it("sends raw events to the Webhook while keeping the human summary local", async () => {
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter();
+    const requests: RequestInit[] = [];
+    const gatewayFetch: typeof fetch = async (_input, init) => {
+      requests.push(init ?? {});
+      return new Response(null, { status: 202 });
+    };
+
+    const exitCode = await runCli(["creator", "--webhook", "https://example.test/events"], {
+      provider,
+      stdout,
+      stderr: createWriter(),
+      gatewayFetch,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(requests).toHaveLength(2);
+    expect(requests.map(({ body }) => JSON.parse(String(body)).type)).toEqual([
+      "session_started",
+      "session_ended",
+    ]);
+    expect(stdout.value()).toContain("SESSION SUMMARY");
+    expect(requests.map(({ body }) => String(body)).join("\n")).not.toContain("SESSION SUMMARY");
   });
 
   it("writes only JSONL to stdout in --json mode and keeps diagnostics on stderr", async () => {
@@ -392,6 +481,9 @@ describe("runCli", () => {
     expect(stderr.value()).toContain("Connecting to @creator...\n");
     expect(stderr.value()).toContain("Room ID: room-cli\n");
     expect(stderr.value()).toContain("Session ID: session-cli\n");
+    expect(stderr.value()).toContain("SESSION SUMMARY\n");
+    expect(stderr.value()).toContain("Status: completed\n");
+    expect(stdout.value()).not.toContain("SESSION SUMMARY");
   });
 
   it("writes byte-equivalent JSONL to stdout and --output", async () => {
@@ -459,5 +551,28 @@ describe("runCli", () => {
     expect(exitCode).toBe(1);
     expect(provider.disconnectCalls).toBe(1);
     expect(stderr.value()).toContain("Output error: EPIPE\n");
+  });
+
+  it("returns a non-zero code and writes a failed summary when the human renderer fails", async () => {
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = {
+      isTTY: false,
+      write: vi.fn((message: string) => {
+        if (message.includes("SESSION STARTED")) {
+          throw new Error("terminal EPIPE");
+        }
+      }),
+    };
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator"], { provider, stdout, stderr });
+
+    expect(exitCode).toBe(1);
+    expect(provider.disconnectCalls).toBe(1);
+    expect(stderr.value()).toContain("Output error: terminal EPIPE\n");
+    expect(stdout.write.mock.calls.map(([message]) => message).join("")).toContain(
+      "Status: failed\n",
+    );
   });
 });

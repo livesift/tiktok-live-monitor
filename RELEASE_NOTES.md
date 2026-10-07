@@ -9,6 +9,7 @@ English version: [RELEASE_NOTES-en.md](./RELEASE_NOTES-en.md)
 - Node.js 20+ TypeScript CLI，提供 `tiktok-live-monitor` binary
 - 人类可读 Console 输出、`--json` JSONL stdout 和 `--output <path>` 文件输出
 - 规范化 `LiveEvent` envelope、session lifecycle 和确定性 JSONL/schema fixtures
+- 有状态终端 renderer、一次性 session 摘要和无需网络的终端 Demo
 - 通用 Webhook `POST`、可重复自定义 Header、每事件最多 3 次尝试和指数退避
 - Webhook best-effort 失败语义：失败记录到诊断，不阻断本地输出和后续 LIVE 事件
 - Apache-2.0 项目许可证，以及独立的免责声明和第三方依赖说明
@@ -20,6 +21,20 @@ English version: [RELEASE_NOTES-en.md](./RELEASE_NOTES-en.md)
 - Webhook 只保证 best-effort HTTP 投递；endpoint 不可用时事件可能丢失，错误诊断不会包含 Header 值。
 - Public CLI 连接公开直播时仍须遵守 TikTok 平台条款、隐私要求和适用法律；项目不代表 TikTok 或 ByteDance。
 - 真实 TikTok LIVE smoke 结果受主播在线状态和第三方 provider 可用性影响，不作为离线 CI 的稳定性保证。
+
+## 离线终端 Demo
+
+在 Node.js 20+ 环境从源码回放或更新 capture：
+
+```bash
+npm run demo:terminal
+npm run demo:terminal:preview
+npm run demo:terminal:record
+```
+
+回放约 18 秒，只消费合成 `examples/session.jsonl` fixture，不连接 TikTok、Webhook、LiveSift 或 Private Gateway，也不需要 Web UI 或 LiveSift 账号。[文本预览](./examples/terminal-demo.txt) 与 [asciinema v2 capture](./examples/terminal-demo.cast) 对应 package `0.1.0-alpha.1`；可用 `asciinema play examples/terminal-demo.cast` 播放 capture。Demo 验证 renderer，不代表 TikTok-Live-Connector 或 Euler Stream 等第三方 provider 可用。当前 viewer 按最新有效 `occurredAt` 时间确定；终端摘要不会写入 JSONL 或 Webhook。
+
+Fixture 回放和 CLI sink 的验收结果见 [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md)。
 
 ## Verification before tagging
 
