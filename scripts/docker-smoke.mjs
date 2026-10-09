@@ -24,6 +24,10 @@ const validateMetadata = new Ajv({ allErrors: true }).compile(metadataSchema);
 const imageTag = `livesift-public-smoke:${process.pid}`;
 let imageBuilt = false;
 let writableDirectory;
+const hostUser =
+  typeof process.getuid === "function" && typeof process.getgid === "function"
+    ? `${process.getuid()}:${process.getgid()}`
+    : undefined;
 
 function docker(args, label, expectedStatus = 0) {
   const result = spawnSync("docker", args, {
@@ -118,23 +122,23 @@ async function main() {
 
   writableDirectory = await mkdtemp(path.join(tmpdir(), "livesift-docker-smoke-"));
   await chmod(writableDirectory, 0o777);
-  const archive = docker(
-    [
-      "run",
-      "--rm",
-      "--network",
-      "none",
-      "--mount",
-      `type=bind,src=${writableDirectory},dst=/data`,
-      imageTag,
-      "--replay",
-      "/app/examples/session.jsonl",
-      "--json",
-      "--output-dir",
-      "/data",
-    ],
-    "Writable mounted archive",
-  );
+  // 让宿主用户能够读取和清理容器生成的 0600 归档文件。
+  const writableRunArgs = [
+    "run",
+    "--rm",
+    "--network",
+    "none",
+    ...(hostUser === undefined ? [] : ["--user", hostUser]),
+    "--mount",
+    `type=bind,src=${writableDirectory},dst=/data`,
+    imageTag,
+    "--replay",
+    "/app/examples/session.jsonl",
+    "--json",
+    "--output-dir",
+    "/data",
+  ];
+  const archive = docker(writableRunArgs, "Writable mounted archive");
   assertEvents(parseJsonl(archive.stdout, "Writable mounted archive"), "Mounted stdout");
 
   const creatorKey = `c-${Buffer.from(fixture[0].creator.username, "utf8").toString("hex")}`;
