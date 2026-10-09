@@ -1,0 +1,2 @@
+# CSV 草稿格式要求 CRLF 记录分隔符。
+examples/*.csv text eol=crlf
