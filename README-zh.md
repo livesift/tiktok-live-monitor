@@ -58,16 +58,27 @@ docker run --rm -v "$PWD/data:/data" tiktok-live-monitor:local \
 # 保留人类可读终端输出，同时写入会话 JSONL 文件。
 npm run dev -- @username --output ./data/session.jsonl
 
+# 每场直播创建独立归档目录，并保存 session metadata。
+npm run dev -- @username --output-dir ./data
+
 # stdout 只有 JSONL 事件；状态和诊断信息写入 stderr。
 npm run dev -- --json @username | jq -c .
 
 # stdout 和文件同时接收等价的 JSONL 事件。
 npm run dev -- @username --json --output ./data/session.jsonl > session.stdout.jsonl
+
+# 离线回放仓库中的完整会话 fixture。
+npm run dev -- --replay examples/session.jsonl --json
+npm run dev -- --replay examples/session.jsonl --json --output-dir ./data/replays
 ```
 
 `--output <path>` 会以当前工作目录为基准解析相对路径，递归创建缺失的父目录，并在连接前以 truncate 模式打开目标文件，不会追加到旧文件。如果 provider 在产生事件前连接失败，已经初始化的文件会保持为空；路径无法创建或打开时，CLI 会在连接 TikTok 前失败。
 
+`--output-dir <directory>` 会按 Creator、UTC 开始日期/时间和 session ID 为每场直播创建新目录，目录中包含 `events.jsonl` 与独立的 `session.metadata.json`；已存在的会话目录不会被覆盖。该参数与 `--output` 互斥。目录命名、metadata 状态、schema 和验证命令见 [`docs/export-formats.md`](./docs/export-formats.md)。
+
 `--json` 保证 stdout 可被机器处理：每个事件都是一行完整 JSON object；连接状态、关闭消息和诊断信息写入 stderr。组合使用 `--json` 与 `--output` 时，两个 sink 会按相同顺序写入同一批事件。
+
+`--replay <path>` 会校验并即时回放一场完整的核心 `LiveEvent` JSONL 会话，不需要 username、TikTok 连接、Webhook 或 Gateway 请求。输入上限为 16 MiB，且必须在打开或截断任何输出文件前通过完整校验。它支持 `--json`、`--output` 和 `--output-dir`，不能与 username、`--webhook` 或 `--webhook-header` 同用。生命周期与身份约束见 [`docs/export-formats.md`](./docs/export-formats.md)。
 
 仓库提供确定性的会话示例 [`examples/session.jsonl`](./examples/session.jsonl)，可以逐行使用以下命令校验：
 
@@ -76,7 +87,34 @@ jq -e . examples/session.jsonl >/dev/null
 npm test -- --run test/session-fixture.test.ts test/live-event-contract.test.ts
 ```
 
-参见 [`examples/README.md`](./examples/README.md) 或 [`examples/README-en.md`](./examples/README-en.md)，了解 fixture、schema 和 Webhook 的验证对应关系。
+参见 [`docs/export-formats.md`](./docs/export-formats.md)、[`examples/README.md`](./examples/README.md) 或 [`examples/README-en.md`](./examples/README-en.md)，了解导出格式、fixture、schema 和 Webhook 的验证对应关系。构建包与 Docker 的回放验收结果记录在 [`examples/export-verification.md`](./examples/export-verification.md)。
+
+格式说明还定义了固定 15 列的 `csv-draft-v1`。[`examples/session.csv`](./examples/session.csv) 对应九条 JSONL 核心 fixture；[`examples/session-csv-escaping.csv`](./examples/session-csv-escaping.csv) 展示逗号、双引号和字段内换行的转义，可运行 `npm test -- --run test/csv-draft.test.ts` 校验。CSV 仍是文档草稿，CLI 没有 CSV 导出器或 `--csv` 参数。PK/battle 使用独立协议草稿；`pk_started`、`pk_ended` 不属于核心事件，会被核心 replay 拒绝，也不受 Private ingest 支持。Public 仓库尚未交付 PK parser 或 fixture，边界见 [`docs/pk-battle-protocol-draft.md`](./docs/pk-battle-protocol-draft.md)。
+
+## Docker 离线回放
+
+在仓库根目录构建 production 镜像。构建阶段需要联网下载基础镜像和锁定的 npm 依赖；构建完成后，帮助与回放命令可在容器禁网时运行：
+
+```bash
+docker build -t tiktok-live-monitor:local .
+docker run --rm --network none tiktok-live-monitor:local --help
+docker run --rm --network none \
+  -e LIVESIFT_GATEWAY_URL=http://127.0.0.1:1 \
+  tiktok-live-monitor:local --replay /app/examples/session.jsonl --json
+```
+
+镜像包含 production CLI、schema、fixture 和格式说明，默认以非 root 的 `node` 用户运行。宿主只需 Docker；无需安装宿主 Node.js、tsx、Vitest，也不需要 TikTok 凭证或 LiveSift 账号。
+
+要将归档写到宿主目录，可以让容器进程使用当前宿主 UID/GID，或把挂载目录设置为镜像默认 `node` 用户（UID/GID 1000）可写：
+
+```bash
+mkdir -p ./data
+docker run --rm --network none --user "$(id -u):$(id -g)" \
+  -v "$PWD/data:/data" tiktok-live-monitor:local \
+  --replay /app/examples/session.jsonl --json --output-dir /data
+```
+
+挂载目录必须允许容器进程写入；只读挂载会输出权限诊断并以非零状态退出。Linux 上使用镜像默认用户时，可通过 `chown 1000:1000 ./data` 调整目录所有权。
 
 ## 离线终端 Demo
 

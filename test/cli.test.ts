@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -12,7 +12,9 @@ class FakeProvider implements LiveProvider {
   connectCalls = 0;
   disconnectCalls = 0;
   connectError: unknown;
+  emitSessionStarted = false;
   emitSessionEnd = false;
+  emitSessionEndOnDisconnect = false;
   duplicateSessionEnd = false;
   private readonly session: LiveSession = {
     username: "creator",
@@ -27,14 +29,8 @@ class FakeProvider implements LiveProvider {
       throw this.connectError;
     }
     const session = { ...this.session, username };
-    if (this.emitSessionEnd) {
-      const base = {
-        platform: "tiktok" as const,
-        occurredAt: "2026-09-20T02:00:00Z",
-        receivedAt: "2026-09-20T02:00:01Z",
-        session: { id: "session-cli", roomId: session.roomId },
-        creator: { username: session.username },
-      };
+    if (this.emitSessionStarted || this.emitSessionEnd) {
+      const base = this.eventBase(session.username, session.roomId);
       for (const handler of this.handlers) {
         handler({
           ...base,
@@ -43,27 +39,11 @@ class FakeProvider implements LiveProvider {
           occurredAt: "2026-09-20T01:00:00Z",
           data: { startedAt: "2026-09-20T01:00:00Z" },
         });
-        handler({
-          ...base,
-          id: "event-ended",
-          type: "session_ended",
-          data: {
-            startedAt: "2026-09-20T01:00:00Z",
-            endedAt: "2026-09-20T02:00:00Z",
-            reason: "stream_end",
-          },
-        });
+        if (this.emitSessionEnd) {
+          handler(this.sessionEndedEvent(base, "event-ended"));
+        }
         if (this.duplicateSessionEnd) {
-          handler({
-            ...base,
-            id: "event-ended-duplicate",
-            type: "session_ended",
-            data: {
-              startedAt: "2026-09-20T01:00:00Z",
-              endedAt: "2026-09-20T02:00:00Z",
-              reason: "stream_end",
-            },
-          });
+          handler(this.sessionEndedEvent(base, "event-ended-duplicate"));
         }
       }
     }
@@ -72,10 +52,42 @@ class FakeProvider implements LiveProvider {
 
   async disconnect(): Promise<void> {
     this.disconnectCalls += 1;
+    if (this.emitSessionEndOnDisconnect) {
+      const base = this.eventBase("creator", this.session.roomId);
+      for (const handler of this.handlers) {
+        handler(this.sessionEndedEvent(base, "event-ended"));
+      }
+    }
   }
 
   onEvent(handler: ProviderEventHandler): void {
     this.handlers.add(handler);
+  }
+
+  private eventBase(username: string, roomId: string) {
+    return {
+      platform: "tiktok" as const,
+      occurredAt: "2026-09-20T02:00:00Z",
+      receivedAt: "2026-09-20T02:00:01Z",
+      session: { id: "session-cli", roomId },
+      creator: { username },
+    };
+  }
+
+  private sessionEndedEvent(
+    base: ReturnType<FakeProvider["eventBase"]>,
+    id: string,
+  ): LiveEvent<"session_ended"> {
+    return {
+      ...base,
+      id,
+      type: "session_ended",
+      data: {
+        startedAt: "2026-09-20T01:00:00Z",
+        endedAt: "2026-09-20T02:00:00Z",
+        reason: "stream_end",
+      },
+    };
   }
 }
 
@@ -95,6 +107,11 @@ describe("runCli", () => {
       username: "creator",
       json: true,
       output: "session.jsonl",
+    });
+    expect(parseCliOptions(["@creator", "--output-dir", "./archives"])).toEqual({
+      username: "creator",
+      json: false,
+      outputDirectory: "./archives",
     });
     expect(parseCliOptions(["@creator", "--webhook", "https://example.test/events"])).toEqual({
       username: "creator",
@@ -125,6 +142,12 @@ describe("runCli", () => {
       "option '-o, --output <path>' argument missing",
     );
     expect(() => parseCliOptions(["creator", "extra"])).toThrow("too many arguments");
+    expect(() =>
+      parseCliOptions(["creator", "--output", "events.jsonl", "--output-dir", "archives"]),
+    ).toThrow("cannot be used together");
+    expect(() => parseCliOptions(["creator", "--output-dir", " "])).toThrow(
+      "Output directory must not be empty",
+    );
     expect(() => parseCliOptions(["creator", "--webhook-header", "Authorization"])).toThrow(
       '"Name: value"',
     );
@@ -140,9 +163,11 @@ describe("runCli", () => {
 
     expect(exitCode).toBe(0);
     expect(provider.connectCalls).toBe(0);
-    expect(stdout.value()).toContain("Usage: tiktok-live-monitor [options] <username>");
+    expect(stdout.value()).toContain("Usage: tiktok-live-monitor [options] [username]");
+    expect(stdout.value()).toContain("--replay <path>");
     expect(stdout.value()).toContain("--json");
     expect(stdout.value()).toContain("--output <path>");
+    expect(stdout.value()).toContain("--output-dir <directory>");
     expect(stdout.value()).toContain("--webhook <url>");
     expect(stdout.value()).toContain("--webhook-header <header>");
   });
@@ -364,9 +389,12 @@ describe("runCli", () => {
 
   it.each(["SIGINT", "SIGTERM"] as const)("disconnects and exits after %s", async (signal) => {
     const provider = new FakeProvider();
+    provider.emitSessionStarted = true;
+    provider.emitSessionEndOnDisconnect = true;
+    const root = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-signal-archive-"));
     const source = new EventEmitter();
     const stdout = createWriter();
-    const run = runCli(["creator"], {
+    const run = runCli(["creator", "--output-dir", root], {
       provider,
       signalSource: source,
       stdout,
@@ -382,6 +410,15 @@ describe("runCli", () => {
     expect(stdout.value()).toContain("Disconnected.\n");
     expect(stdout.value()).toContain("Status: interrupted\n");
     expect(stdout.value().match(/SESSION SUMMARY/g)).toHaveLength(1);
+    const creatorDirectory = (await readdir(root))[0]!;
+    const dateDirectory = join(root, creatorDirectory, "2026-09-20");
+    const sessionDirectory = join(dateDirectory, (await readdir(dateDirectory))[0]!);
+    const metadata = JSON.parse(
+      await readFile(join(sessionDirectory, "session.metadata.json"), "utf8"),
+    ) as { status: string; endReason: string | null };
+    expect(metadata).toEqual(
+      expect.objectContaining({ status: "interrupted", endReason: "stream_end" }),
+    );
   });
 
   it("exits when the provider emits session_ended", async () => {
@@ -427,6 +464,92 @@ describe("runCli", () => {
       "session_ended",
     ]);
     expect(lines.join("\n")).not.toContain("SESSION SUMMARY");
+  });
+
+  it("archives one complete session without mixing metadata into JSON output", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-session-archive-"));
+    const provider = new FakeProvider();
+    provider.emitSessionEnd = true;
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const webhookBodies: string[] = [];
+    const gatewayFetch: typeof fetch = async (_input, init) => {
+      webhookBodies.push(String(init?.body ?? ""));
+      return new Response(null, { status: 202 });
+    };
+
+    const exitCode = await runCli(
+      ["creator", "--json", "--output-dir", root, "--webhook", "https://example.test/events"],
+      {
+        provider,
+        stdout,
+        stderr,
+        gatewayFetch,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(provider.connectCalls).toBe(1);
+    const creatorDirectory = (await readdir(root))[0]!;
+    const dateDirectory = join(root, creatorDirectory, "2026-09-20");
+    const sessionDirectory = join(dateDirectory, (await readdir(dateDirectory))[0]!);
+    const archivedEvents = await readFile(join(sessionDirectory, "events.jsonl"), "utf8");
+    const stdoutEvents = stdout
+      .value()
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line) as unknown);
+    const fileEvents = archivedEvents
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line) as unknown);
+    const metadata = JSON.parse(
+      await readFile(join(sessionDirectory, "session.metadata.json"), "utf8"),
+    ) as { status: string; eventCount: number; eventCounts: Record<string, number> };
+    expect(stdoutEvents).toEqual(fileEvents);
+    expect(webhookBodies.map((body) => JSON.parse(body))).toEqual(fileEvents);
+    expect(stdoutEvents.map((event) => (event as { type: string }).type)).toEqual([
+      "session_started",
+      "session_ended",
+    ]);
+    expect(archivedEvents).not.toContain("SESSION SUMMARY");
+    expect(metadata).toEqual(expect.objectContaining({ status: "completed", eventCount: 2 }));
+    expect(Object.values(metadata.eventCounts).reduce((sum, count) => sum + count, 0)).toBe(2);
+    expect(stderr.value()).toContain("SESSION SUMMARY");
+  });
+
+  it("does not create a session archive when the provider is offline", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-offline-archive-"));
+    const provider = new FakeProvider();
+    provider.connectError = new MonitorError("OFFLINE", "@creator is currently offline.");
+
+    const exitCode = await runCli(["creator", "--output-dir", root], {
+      provider,
+      stdout: createWriter(),
+      stderr: createWriter(),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(provider.connectCalls).toBe(1);
+    expect(await readdir(root)).toEqual([]);
+  });
+
+  it("rejects an unusable archive root before connecting", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "tiktok-live-monitor-invalid-archive-"));
+    const root = join(parent, "archive-file");
+    await writeFile(root, "not a directory");
+    const provider = new FakeProvider();
+    const stderr = createWriter();
+
+    const exitCode = await runCli(["creator", "--output-dir", root], {
+      provider,
+      stdout: createWriter(),
+      stderr,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(provider.connectCalls).toBe(0);
+    expect(stderr.value()).toContain("Output directory initialization failed:");
   });
 
   it("sends raw events to the Webhook while keeping the human summary local", async () => {

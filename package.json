@@ -11,6 +11,7 @@
     "dist",
     "schemas",
     "examples",
+    "docs",
     "README.md",
     "README-zh.md",
     "DISCLAIMER.md",
@@ -26,6 +27,7 @@
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts",
+    "docker:smoke": "node scripts/docker-smoke.mjs",
     "demo:terminal": "tsx scripts/terminal-demo.ts",
     "demo:terminal:record": "tsx scripts/terminal-demo.ts --record",
     "demo:terminal:preview": "tsx scripts/terminal-demo.ts --preview",

@@ -10,6 +10,7 @@ export interface SignalSource {
 
 export interface SignalHandlerOptions {
   source?: SignalSource;
+  onSignal?: () => void;
   onExit?: (code: number) => void;
 }
 
@@ -150,6 +151,7 @@ export function installSignalHandlers(
       return;
     }
     stopping = true;
+    options.onSignal?.();
 
     void monitor
       .disconnect()

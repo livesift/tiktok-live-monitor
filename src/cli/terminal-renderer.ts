@@ -121,7 +121,9 @@ export class TerminalRenderer implements EventSink {
     }
     if (event.type === "session_ended") {
       this.state = "ENDED";
-      this.summaryStatus = summaryStatusForEndReason(event.data.reason);
+      if (this.summaryStatus !== "interrupted") {
+        this.summaryStatus = summaryStatusForEndReason(event.data.reason);
+      }
     }
 
     const eventLine = formatLiveEvent(event);
@@ -154,6 +156,12 @@ export class TerminalRenderer implements EventSink {
         : formatSessionSummary(this.stats.snapshot(), status),
     );
     return this.finalizePromise;
+  }
+
+  markInterrupted(): void {
+    if (!this.summaryWritten) {
+      this.summaryStatus = "interrupted";
+    }
   }
 
   close(): Promise<void> {

@@ -20,6 +20,7 @@ RUN npm ci --omit=dev --ignore-scripts \
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/schemas ./schemas
 COPY --from=builder --chown=node:node /app/examples ./examples
+COPY --from=builder --chown=node:node /app/docs ./docs
 COPY --from=builder --chown=node:node /app/LICENSE ./LICENSE
 COPY --from=builder --chown=node:node /app/README.md ./README.md
 COPY --from=builder --chown=node:node /app/README-zh.md ./README-zh.md

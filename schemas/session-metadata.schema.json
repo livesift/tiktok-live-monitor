@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:livesift:schema:session-metadata:v1",
+  "title": "LiveSift Session Export Metadata",
+  "description": "Metadata stored beside one session's LiveEvent JSONL archive.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadataSchemaVersion",
+    "eventSchemaId",
+    "packageVersion",
+    "source",
+    "platform",
+    "session",
+    "creator",
+    "startedAt",
+    "endedAt",
+    "endReason",
+    "status",
+    "eventCount",
+    "eventCounts",
+    "eventsFile"
+  ],
+  "properties": {
+    "metadataSchemaVersion": { "const": 1 },
+    "eventSchemaId": { "const": "urn:livesift:schema:live-event:v1" },
+    "packageVersion": { "type": "string", "minLength": 1 },
+    "source": { "enum": ["live", "replay"] },
+    "platform": { "const": "tiktok" },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "roomId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "creator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["username"],
+      "properties": {
+        "username": { "type": "string", "minLength": 1 },
+        "userId": { "type": "string", "minLength": 1 },
+        "nickname": { "type": "string", "minLength": 1 }
+      }
+    },
+    "startedAt": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "endedAt": {
+      "anyOf": [{ "type": "string", "format": "date-time", "pattern": "Z$" }, { "type": "null" }]
+    },
+    "endReason": { "type": ["string", "null"] },
+    "status": { "enum": ["recording", "completed", "interrupted", "failed"] },
+    "eventCount": { "type": "integer", "minimum": 0 },
+    "eventCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_started",
+        "session_ended",
+        "comment",
+        "gift",
+        "like",
+        "follow",
+        "share",
+        "viewer_count"
+      ],
+      "properties": {
+        "session_started": { "type": "integer", "minimum": 0 },
+        "session_ended": { "type": "integer", "minimum": 0 },
+        "comment": { "type": "integer", "minimum": 0 },
+        "gift": { "type": "integer", "minimum": 0 },
+        "like": { "type": "integer", "minimum": 0 },
+        "follow": { "type": "integer", "minimum": 0 },
+        "share": { "type": "integer", "minimum": 0 },
+        "viewer_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "eventsFile": { "const": "events.jsonl" }
+  }
+}

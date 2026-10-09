@@ -74,6 +74,7 @@ if (packageJson === undefined) {
     "dist",
     "schemas",
     "examples",
+    "docs",
     "README.md",
     "README-zh.md",
     "DISCLAIMER.md",
@@ -103,7 +104,14 @@ for (const relativePath of [
   "LICENSE",
   "schemas/live-event.schema.json",
   "schemas/fixtures/manifest.json",
+  "docs/export-formats.md",
+  "docs/export-formats-en.md",
+  "docs/pk-battle-protocol-draft.md",
+  "docs/pk-battle-protocol-draft-en.md",
   "examples/session.jsonl",
+  "examples/session.csv",
+  "examples/session-csv-escaping.csv",
+  "examples/export-verification.md",
   "examples/terminal-demo.cast",
   "examples/terminal-demo.txt",
   "examples/terminal-demo-verification.md",
@@ -111,6 +119,41 @@ for (const relativePath of [
   "examples/README-en.md",
 ]) {
   requireFile(relativePath);
+}
+
+for (const relativePath of [
+  "README.md",
+  "README-zh.md",
+  "examples/README.md",
+  "examples/README-en.md",
+  "docs/export-formats.md",
+  "docs/export-formats-en.md",
+  "docs/pk-battle-protocol-draft.md",
+  "docs/pk-battle-protocol-draft-en.md",
+]) {
+  const content = readText(relativePath);
+  if (content === undefined) {
+    continue;
+  }
+  const links = content.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g);
+  for (const [, target] of links) {
+    if (target === undefined || /^(?:https?:|mailto:|#)/i.test(target)) {
+      continue;
+    }
+    const localTarget = decodeURIComponent(target.split("#", 1)[0] ?? "");
+    if (localTarget === "") {
+      continue;
+    }
+    const absoluteTarget = resolve(dirname(resolve(root, relativePath)), localTarget);
+    const projectRelativeTarget = relative(root, absoluteTarget);
+    assert(
+      projectRelativeTarget !== "" &&
+        !isAbsolute(projectRelativeTarget) &&
+        !projectRelativeTarget.startsWith(".."),
+      `${relativePath} 的本地链接超出项目目录: ${target}`,
+    );
+    requireFile(projectRelativeTarget);
+  }
 }
 
 const readmeTokens = ["--json", "--output", "--webhook", "npm run build", "docker build"];

@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 import { Command, CommanderError } from "commander";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { MonitorError, normalizeMonitorError } from "../core/errors.js";
 import { installSignalHandlers, MonitorController, type SignalSource } from "../core/monitor.js";
 import type { LiveProvider } from "../core/provider.js";
+import { readReplayFile } from "../core/replay.js";
 import { normalizeCreatorUsername } from "../core/username.js";
 import { gatewayUrlFromEnvironment, resolveGatewayEventsEndpoint } from "../events/gateway.js";
 import { TikTokLiveConnectorProvider } from "../providers/tiktok-live-connector/provider.js";
@@ -23,12 +25,15 @@ import {
   QueuedWritableSink,
   WebhookEventSink,
   initializeOutputFile,
+  prepareSessionOutputDirectory,
   parseWebhookHeader,
+  SessionDirectorySink,
   type EventSink,
   type TextSink,
   type WebhookHeader,
   type WritableStreamLike,
 } from "../sinks/index.js";
+import type { SessionExportSource } from "../sinks/session-metadata.js";
 
 export interface CliWriter {
   write(message: string): unknown;
@@ -39,9 +44,11 @@ export interface CliWriter {
 }
 
 export interface CliConfiguration {
-  username: string;
+  username?: string;
   json: boolean;
+  replay?: string;
   output?: string;
+  outputDirectory?: string;
   webhook?: string;
   webhookHeaders?: readonly WebhookHeader[];
 }
@@ -56,7 +63,12 @@ export interface CliOptions {
   gatewayFetch?: typeof fetch;
 }
 
-const usage = "Usage: tiktok-live-monitor <username>";
+const usage = "Usage: tiktok-live-monitor <username> or --replay <path>";
+
+function packageVersion(): string {
+  const packagePath = resolve(dirname(fileURLToPath(import.meta.url)), "../../package.json");
+  return (JSON.parse(readFileSync(packagePath, "utf8")) as { version: string }).version;
+}
 
 type CliParseResult = CliConfiguration | { help: string };
 
@@ -65,13 +77,13 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
   const help: string[] = [];
   const program = new Command()
     .name("tiktok-live-monitor")
-    .description(
-      "Monitor a TikTok LIVE session. Default output is human-readable; use --json for JSONL.",
-    )
-    .usage("[options] <username>")
-    .argument("<username>", "TikTok LIVE creator username")
+    .description("Monitor a TikTok LIVE session or replay one JSONL session offline.")
+    .usage("[options] [username]")
+    .argument("[username]", "TikTok LIVE creator username")
     .option("--json", "write JSONL events to stdout; diagnostics go to stderr")
     .option("-o, --output <path>", "write JSONL events to a truncated file")
+    .option("--output-dir <directory>", "archive each session in a new directory")
+    .option("--replay <path>", "replay one validated JSONL session without network access")
     .option("--webhook <url>", "POST normalized events to an HTTP endpoint")
     .option(
       "--webhook-header <header>",
@@ -81,7 +93,7 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
     )
     .addHelpText(
       "after",
-      '\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n  tiktok-live-monitor @creator --webhook https://example.test/events --webhook-header "Authorization: Bearer TOKEN"\n',
+      '\nExamples:\n  tiktok-live-monitor @creator\n  tiktok-live-monitor @creator --json --output ./data/session.jsonl\n  tiktok-live-monitor --replay ./examples/session.jsonl --json\n  tiktok-live-monitor @creator --webhook https://example.test/events --webhook-header "Authorization: Bearer TOKEN"\n',
     )
     .allowExcessArguments(false)
     .exitOverride()
@@ -92,7 +104,7 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
     });
 
   let rawUsername: string | undefined;
-  program.action((username: string) => {
+  program.action((username: string | undefined) => {
     rawUsername = username;
   });
 
@@ -110,28 +122,58 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
     return { help: help.join("") };
   }
 
-  if (rawUsername === undefined) {
-    throw new MonitorError("INVALID_USERNAME", usage);
-  }
-
-  let username: string;
-  try {
-    username = normalizeCreatorUsername(rawUsername);
-  } catch (error) {
-    const normalizedError = normalizeMonitorError(error, "INVALID_USERNAME");
-    throw new MonitorError("INVALID_USERNAME", `${usage}\n${normalizedError.message}`, {
-      cause: error,
-    });
-  }
-
   const options = program.opts<{
     json?: boolean;
     output?: string;
+    outputDir?: string;
+    replay?: string;
     webhook?: string;
     webhookHeader?: string[];
   }>();
+  if (options.replay !== undefined && options.replay.trim() === "") {
+    throw new MonitorError("INVALID_USERNAME", `${usage}\nReplay path must not be empty.`);
+  }
+  if (options.replay !== undefined && rawUsername !== undefined) {
+    throw new MonitorError(
+      "INVALID_USERNAME",
+      `${usage}\n--replay cannot be used with a username.`,
+    );
+  }
+  if (options.replay === undefined && rawUsername === undefined) {
+    throw new MonitorError("INVALID_USERNAME", usage);
+  }
+  if (
+    options.replay !== undefined &&
+    (options.webhook !== undefined || (options.webhookHeader?.length ?? 0) > 0)
+  ) {
+    throw new MonitorError(
+      "INVALID_USERNAME",
+      `${usage}\n--replay cannot be used with --webhook or --webhook-header.`,
+    );
+  }
+
+  let username: string | undefined;
+  if (rawUsername !== undefined) {
+    try {
+      username = normalizeCreatorUsername(rawUsername);
+    } catch (error) {
+      const normalizedError = normalizeMonitorError(error, "INVALID_USERNAME");
+      throw new MonitorError("INVALID_USERNAME", `${usage}\n${normalizedError.message}`, {
+        cause: error,
+      });
+    }
+  }
   if (options.output !== undefined && options.output.trim() === "") {
     throw new MonitorError("INVALID_USERNAME", `${usage}\nOutput path must not be empty.`);
+  }
+  if (options.outputDir !== undefined && options.outputDir.trim() === "") {
+    throw new MonitorError("INVALID_USERNAME", `${usage}\nOutput directory must not be empty.`);
+  }
+  if (options.output !== undefined && options.outputDir !== undefined) {
+    throw new MonitorError(
+      "INVALID_USERNAME",
+      `${usage}\n--output and --output-dir cannot be used together.`,
+    );
   }
   if (options.webhook !== undefined && options.webhook.trim() === "") {
     throw new MonitorError("INVALID_USERNAME", `${usage}\nWebhook URL must not be empty.`);
@@ -146,9 +188,11 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
   }
 
   return {
-    username,
     json: options.json === true,
+    ...(username === undefined ? {} : { username }),
+    ...(options.replay === undefined ? {} : { replay: options.replay }),
     ...(options.output === undefined ? {} : { output: options.output }),
+    ...(options.outputDir === undefined ? {} : { outputDirectory: options.outputDir }),
     ...(options.webhook === undefined ? {} : { webhook: options.webhook }),
     ...(webhookHeaders === undefined || webhookHeaders.length === 0 ? {} : { webhookHeaders }),
   };
@@ -156,7 +200,7 @@ export function parseCliOptions(args: readonly string[]): CliParseResult {
 
 export function parseCreatorUsername(args: readonly string[]): string {
   const parsed = parseCliOptions(args);
-  if ("help" in parsed) {
+  if ("help" in parsed || parsed.username === undefined) {
     throw new MonitorError("INVALID_USERNAME", usage);
   }
   return parsed.username;
@@ -181,6 +225,169 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+interface CliEventOutputs {
+  sessionStats: SessionStats;
+  terminalRenderer: TerminalRenderer | undefined;
+  sessionDirectorySink: SessionDirectorySink | undefined;
+  outputCoordinator: OutputCoordinator;
+}
+
+async function initializeEventOutputs(
+  configuration: CliConfiguration,
+  stdout: CliWriter,
+  source: SessionExportSource,
+  additionalSinks: readonly EventSink[] = [],
+): Promise<CliEventOutputs> {
+  let outputFile: Awaited<ReturnType<typeof initializeOutputFile>> | undefined;
+  if (configuration.output !== undefined) {
+    try {
+      outputFile = await initializeOutputFile(configuration.output);
+    } catch (error) {
+      throw new Error(`Output initialization failed: ${errorMessage(error)}`, { cause: error });
+    }
+  }
+
+  let sessionOutputRoot: string | undefined;
+  if (configuration.outputDirectory !== undefined) {
+    try {
+      sessionOutputRoot = await prepareSessionOutputDirectory(configuration.outputDirectory);
+    } catch (error) {
+      throw new Error(`Output directory initialization failed: ${errorMessage(error)}`, {
+        cause: error,
+      });
+    }
+  }
+
+  const stdoutTextSink = createWriterTextSink(stdout);
+  const sessionStats = new SessionStats();
+  const terminalRenderer = configuration.json
+    ? undefined
+    : new TerminalRenderer(stdoutTextSink, {
+        stats: sessionStats,
+        interactive: stdout.isTTY === true,
+      });
+  const eventSinks: EventSink[] = [
+    configuration.json ? new JsonlSink(stdoutTextSink) : terminalRenderer!,
+  ];
+  if (outputFile !== undefined) {
+    eventSinks.push(new JsonlSink(outputFile.sink));
+  }
+  const sessionDirectorySink =
+    sessionOutputRoot === undefined
+      ? undefined
+      : new SessionDirectorySink({
+          root: sessionOutputRoot,
+          packageVersion: packageVersion(),
+          source,
+        });
+  if (sessionDirectorySink !== undefined) {
+    eventSinks.push(sessionDirectorySink);
+  }
+  eventSinks.push(...additionalSinks);
+
+  return {
+    sessionStats,
+    terminalRenderer,
+    sessionDirectorySink,
+    outputCoordinator: new OutputCoordinator(eventSinks),
+  };
+}
+
+async function runReplayCli(
+  configuration: CliConfiguration,
+  stdout: CliWriter,
+  stderr: CliWriter,
+  options: CliOptions,
+): Promise<number> {
+  let events;
+  try {
+    events = await readReplayFile(configuration.replay!);
+  } catch (error) {
+    stderr.write(`${errorMessage(error)}\n`);
+    return 1;
+  }
+
+  let outputs: CliEventOutputs;
+  try {
+    outputs = await initializeEventOutputs(configuration, stdout, "replay");
+  } catch (error) {
+    stderr.write(`${errorMessage(error)}\n`);
+    return 1;
+  }
+
+  const signalSource = options.signalSource ?? process;
+  let signalRequested = false;
+  const onSignal = (): void => {
+    signalRequested = true;
+  };
+  signalSource.once("SIGINT", onSignal);
+  signalSource.once("SIGTERM", onSignal);
+
+  let writtenCount = 0;
+  let exitCode = 0;
+  let replayError: unknown;
+  try {
+    for (const event of events) {
+      if (signalRequested) {
+        break;
+      }
+      if (outputs.terminalRenderer === undefined) {
+        outputs.sessionStats.add(event);
+      }
+      await outputs.outputCoordinator.write(event);
+      writtenCount += 1;
+    }
+  } catch (error) {
+    replayError = error;
+  } finally {
+    signalSource.removeListener("SIGINT", onSignal);
+    signalSource.removeListener("SIGTERM", onSignal);
+  }
+
+  const complete = writtenCount === events.length;
+  if (!complete && signalRequested) {
+    replayError ??= new Error("Replay interrupted before all events were written.");
+  }
+  if (replayError !== undefined) {
+    exitCode = 1;
+    stderr.write(`Replay error: ${errorMessage(replayError)}\n`);
+  }
+
+  const lastEvent = events.at(-1)!;
+  const summaryStatus: SessionSummaryStatus =
+    exitCode === 0 && lastEvent.type === "session_ended"
+      ? summaryStatusForEndReason(lastEvent.data.reason)
+      : "failed";
+  try {
+    if (outputs.terminalRenderer !== undefined) {
+      await outputs.terminalRenderer.finalize(summaryStatus);
+    } else if (outputs.sessionStats.snapshot().sessionId !== null) {
+      stderr.write(formatSessionSummary(outputs.sessionStats.snapshot(), summaryStatus));
+    }
+  } catch (error) {
+    exitCode = 1;
+    stderr.write(`Output error: ${errorMessage(error)}\n`);
+  }
+
+  try {
+    await outputs.outputCoordinator.close();
+  } catch (error) {
+    exitCode = 1;
+    stderr.write(`Output error: ${errorMessage(error)}\n`);
+  }
+
+  try {
+    const archiveStatus =
+      exitCode !== 0 ? "failed" : summaryStatus === "interrupted" ? "interrupted" : "completed";
+    await outputs.sessionDirectorySink?.finish(archiveStatus);
+  } catch (error) {
+    exitCode = 1;
+    stderr.write(`Output error: ${errorMessage(error)}\n`);
+  }
+
+  return exitCode;
+}
+
 export async function runCli(
   args: readonly string[] = process.argv.slice(2),
   options: CliOptions = {},
@@ -199,6 +406,10 @@ export async function runCli(
   } catch (error) {
     stderr.write(`${normalizeMonitorError(error, "INVALID_USERNAME").message}\n`);
     return 1;
+  }
+
+  if (configuration.replay !== undefined) {
+    return runReplayCli(configuration, stdout, stderr, options);
   }
 
   const gatewayUrl = options.gatewayUrl ?? gatewayUrlFromEnvironment();
@@ -224,35 +435,20 @@ export async function runCli(
     }
   }
 
-  let outputFile: Awaited<ReturnType<typeof initializeOutputFile>> | undefined;
-  if (configuration.output !== undefined) {
-    try {
-      outputFile = await initializeOutputFile(configuration.output);
-    } catch (error) {
-      stderr.write(`Output initialization failed: ${errorMessage(error)}\n`);
-      return 1;
-    }
-  }
-
   const provider = options.provider ?? new TikTokLiveConnectorProvider();
-  const stdoutTextSink = createWriterTextSink(stdout);
-  const sessionStats = new SessionStats();
-  const terminalRenderer = configuration.json
-    ? undefined
-    : new TerminalRenderer(stdoutTextSink, {
-        stats: sessionStats,
-        interactive: stdout.isTTY === true,
-      });
-  const eventSinks: EventSink[] = [
-    configuration.json ? new JsonlSink(stdoutTextSink) : terminalRenderer!,
-  ];
-  if (outputFile !== undefined) {
-    eventSinks.push(new JsonlSink(outputFile.sink));
+  let outputs: CliEventOutputs;
+  try {
+    outputs = await initializeEventOutputs(
+      configuration,
+      stdout,
+      "live",
+      webhookSink === undefined ? [] : [webhookSink],
+    );
+  } catch (error) {
+    stderr.write(`${errorMessage(error)}\n`);
+    return 1;
   }
-  if (webhookSink !== undefined) {
-    eventSinks.push(webhookSink);
-  }
-  const outputCoordinator = new OutputCoordinator(eventSinks);
+  const { sessionStats, terminalRenderer, sessionDirectorySink, outputCoordinator } = outputs;
   const statusWriter = configuration.json ? stderr : stdout;
   const pendingOutputEvents = new Set<Promise<void>>();
   const flushOutputEvents = async (): Promise<void> => {
@@ -313,12 +509,15 @@ export async function runCli(
     }
   });
 
-  statusWriter.write(`Connecting to @${configuration.username}...\n`);
+  statusWriter.write(`Connecting to @${configuration.username!}...\n`);
 
   const removeSignalHandlers = installSignalHandlers(monitor, {
     source: options.signalSource,
-    onExit: (code) => {
+    onSignal: () => {
       signalRequested = true;
+      terminalRenderer?.markInterrupted();
+    },
+    onExit: (code) => {
       requestShutdown(code);
     },
   });
@@ -362,6 +561,21 @@ export async function runCli(
           stderr.write(`Output error: ${errorMessage(error)}\n`);
         }
       }
+      try {
+        const archiveStatus =
+          shutdownCode === 1 || summaryStatus === "failed"
+            ? "failed"
+            : signalRequested || summaryStatus === "interrupted"
+              ? "interrupted"
+              : "completed";
+        await sessionDirectorySink?.finish(archiveStatus);
+      } catch (error) {
+        shutdownCode = 1;
+        if (!outputFailureReported) {
+          outputFailureReported = true;
+          stderr.write(`Output error: ${errorMessage(error)}\n`);
+        }
+      }
       if (signalRequested) {
         statusWriter.write("Disconnected.\n");
       }
@@ -371,7 +585,7 @@ export async function runCli(
   };
 
   try {
-    const session = await monitor.connect(configuration.username);
+    const session = await monitor.connect(configuration.username!);
     if (terminalRenderer !== undefined) {
       terminalRenderer.bindSession(session.username, session.sessionId, session.roomId);
     } else {

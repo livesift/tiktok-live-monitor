@@ -1,0 +1,3 @@
+id,platform,type,occurredAt,receivedAt,sessionId,roomId,creatorUsername,creatorUserId,creatorNickname,actorUserId,actorUsername,actorNickname,dataJson,rawJson
+csv-escape-example,tiktok,comment,2026-09-21T10:00:05.000Z,2026-09-21T10:00:05.100Z,session-csv-escape-1,room-csv-escape-1,fixture_csv_escape,,,viewer-csv-escape,viewer_escape,"Viewer, ""quoted""
+second line","{""text"":""Thanks, \""viewer\""\nnext line""}",

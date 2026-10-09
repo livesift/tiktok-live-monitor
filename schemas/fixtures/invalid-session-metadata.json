@@ -1,0 +1,25 @@
+{
+  "metadataSchemaVersion": 1,
+  "eventSchemaId": "urn:livesift:schema:live-event:v1",
+  "packageVersion": "0.1.0-alpha.1",
+  "source": "replay",
+  "platform": "tiktok",
+  "session": { "id": "session-fixture-1" },
+  "creator": { "username": "fixture_creator" },
+  "startedAt": "2026-09-21T10:00:00.000Z",
+  "endedAt": null,
+  "endReason": null,
+  "status": "unknown",
+  "eventCount": -1,
+  "eventCounts": {
+    "session_started": 1,
+    "session_ended": 0,
+    "comment": 0,
+    "gift": 0,
+    "like": 0,
+    "follow": 0,
+    "share": 0,
+    "viewer_count": 0
+  },
+  "eventsFile": "events.jsonl"
+}

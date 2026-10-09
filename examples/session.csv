@@ -1,0 +1,10 @@
+id,platform,type,occurredAt,receivedAt,sessionId,roomId,creatorUsername,creatorUserId,creatorNickname,actorUserId,actorUsername,actorNickname,dataJson,rawJson
+fixture-started,tiktok,session_started,2026-09-21T10:00:00.000Z,2026-09-21T10:00:00.000Z,session-fixture-1,room-fixture-1,fixture_creator,,,,,,"{""startedAt"":""2026-09-21T10:00:00.000Z""}",
+fixture-viewers-start,tiktok,viewer_count,2026-09-21T10:00:02.000Z,2026-09-21T10:00:02.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,,,,"{""viewerCount"":1200}",
+fixture-comment,tiktok,comment,2026-09-21T10:00:05.000Z,2026-09-21T10:00:05.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,viewer-1,viewer_one,Viewer One,"{""text"":""Hello from the fixture""}",
+fixture-gift,tiktok,gift,2026-09-21T10:00:10.000Z,2026-09-21T10:00:10.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,viewer-2,viewer_two,,"{""giftId"":""gift-rose"",""giftName"":""Rose"",""count"":2,""diamondCount"":2}",
+fixture-viewers,tiktok,viewer_count,2026-09-21T10:00:20.000Z,2026-09-21T10:00:20.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,,,,"{""viewerCount"":1842}",
+fixture-like,tiktok,like,2026-09-21T10:00:25.000Z,2026-09-21T10:00:25.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,viewer-3,viewer_three,,"{""count"":10,""total"":100}",
+fixture-follow,tiktok,follow,2026-09-21T10:00:30.000Z,2026-09-21T10:00:30.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,viewer-4,viewer_four,,{},
+fixture-share,tiktok,share,2026-09-21T10:00:35.000Z,2026-09-21T10:00:35.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,viewer-5,viewer_five,,{},
+fixture-ended,tiktok,session_ended,2026-09-21T10:01:00.000Z,2026-09-21T10:01:00.100Z,session-fixture-1,room-fixture-1,fixture_creator,,,,,,"{""startedAt"":""2026-09-21T10:00:00.000Z"",""endedAt"":""2026-09-21T10:01:00.000Z"",""reason"":""stream_end""}",

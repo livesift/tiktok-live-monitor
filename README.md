@@ -58,16 +58,27 @@ By default, connection status and event summaries are human-readable on stdout. 
 # Human-readable terminal output plus a truncated JSONL file.
 npm run dev -- @username --output ./data/session.jsonl
 
+# Archive each session in a new directory with a separate metadata file.
+npm run dev -- @username --output-dir ./data
+
 # JSONL events only on stdout; status and diagnostics go to stderr.
 npm run dev -- --json @username | jq -c .
 
 # Send equivalent JSONL events to stdout and a file.
 npm run dev -- @username --json --output ./data/session.jsonl > session.stdout.jsonl
+
+# Replay the checked-in session fixture offline.
+npm run dev -- --replay examples/session.jsonl --json
+npm run dev -- --replay examples/session.jsonl --json --output-dir ./data/replays
 ```
 
 `--output <path>` resolves relative paths from the current working directory, creates missing parent directories, and truncates the target file before connecting. It does not append to an existing file. If the provider fails before producing an event, the initialized file remains empty. A path that cannot be created or opened fails before any TikTok connection is attempted.
 
+`--output-dir <directory>` creates a new archive directory for each session using the Creator key, UTC start date/time, and session ID. Each archive contains `events.jsonl` and `session.metadata.json`; existing session directories are never overwritten. The option is mutually exclusive with `--output`. See [`docs/export-formats-en.md`](./docs/export-formats-en.md) for the directory naming, metadata statuses, schemas, and verification commands.
+
 `--json` keeps stdout machine-readable: every event is one complete JSON object per line, while connection status, shutdown messages, and diagnostics are written to stderr. Combining `--json` and `--output` writes the same event objects, in the same order, to both sinks.
+
+`--replay <path>` validates and immediately replays one complete core `LiveEvent` JSONL session without a username, TikTok connection, Webhook, or Gateway request. The input is limited to 16 MiB and is fully validated before any output file is opened or truncated. It accepts `--json`, `--output`, and `--output-dir`; it cannot be combined with a username, `--webhook`, or `--webhook-header`. See [`docs/export-formats-en.md`](./docs/export-formats-en.md) for the lifecycle and identity requirements.
 
 The repository includes a deterministic session example at [`examples/session.jsonl`](./examples/session.jsonl). Validate it one line at a time with:
 
@@ -76,7 +87,34 @@ jq -e . examples/session.jsonl >/dev/null
 npm test -- --run test/session-fixture.test.ts test/live-event-contract.test.ts
 ```
 
-See [`examples/README-en.md`](./examples/README-en.md) for the fixture, schema and Webhook validation map.
+See [`docs/export-formats-en.md`](./docs/export-formats-en.md) and [`examples/README-en.md`](./examples/README-en.md) for export formats, fixtures, schema and Webhook validation. Recorded package and Docker acceptance results are in [`examples/export-verification.md`](./examples/export-verification.md).
+
+The same guide describes `csv-draft-v1` and its fixed 15 columns. [`examples/session.csv`](./examples/session.csv) mirrors the nine-event JSONL fixture, and [`examples/session-csv-escaping.csv`](./examples/session-csv-escaping.csv) covers commas, quotes, and embedded line breaks. Validate both with `npm test -- --run test/csv-draft.test.ts`. CSV remains a documentation draft; the CLI has no CSV exporter or `--csv` option. PK/battle notes are a separate protocol draft; `pk_started` and `pk_ended` are not core events, are rejected by core replay, and are unsupported by Private ingest. The Public repository does not yet ship a PK parser or fixture; see [`docs/pk-battle-protocol-draft-en.md`](./docs/pk-battle-protocol-draft-en.md).
+
+## Docker offline replay
+
+Build the production image from the repository root. The build downloads the base image and locked npm dependencies; the resulting help and replay commands run without container networking:
+
+```bash
+docker build -t tiktok-live-monitor:local .
+docker run --rm --network none tiktok-live-monitor:local --help
+docker run --rm --network none \
+  -e LIVESIFT_GATEWAY_URL=http://127.0.0.1:1 \
+  tiktok-live-monitor:local --replay /app/examples/session.jsonl --json
+```
+
+The image includes the production CLI, schema, fixture, and format guide, and runs as the non-root `node` user. Host replay needs Docker only; it does not use host Node.js, tsx, Vitest, TikTok credentials, or a LiveSift account.
+
+To export to a host directory, match the container process UID/GID to the host user or make the mount writable by the image's `node` user (UID/GID 1000):
+
+```bash
+mkdir -p ./data
+docker run --rm --network none --user "$(id -u):$(id -g)" \
+  -v "$PWD/data:/data" tiktok-live-monitor:local \
+  --replay /app/examples/session.jsonl --json --output-dir /data
+```
+
+The host user must be able to write the mounted directory; a read-only mount fails with a permission diagnostic and non-zero exit. Mount ownership can be adjusted with `chown 1000:1000 ./data` on Linux when using the image's default user.
 
 ## Offline terminal demo
 
