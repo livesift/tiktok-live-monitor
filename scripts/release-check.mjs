@@ -65,7 +65,12 @@ function assertTextIncludes(relativePath, tokens, label = relativePath) {
   }
 }
 
-const suppliedTag = process.env.RELEASE_TAG?.trim() || process.env.GITHUB_REF_NAME?.trim();
+const explicitTag = process.env.RELEASE_TAG?.trim();
+const githubRef = process.env.GITHUB_REF?.trim();
+const tagFromRef = githubRef?.startsWith("refs/tags/")
+  ? githubRef.slice("refs/tags/".length)
+  : undefined;
+const suppliedTag = explicitTag || tagFromRef;
 if (suppliedTag !== undefined && suppliedTag !== "") {
   const tagMatch = /^v(.+)$/.exec(suppliedTag);
   assert(tagMatch !== null, `发布 tag 必须使用 v<version> 格式: ${suppliedTag}`);

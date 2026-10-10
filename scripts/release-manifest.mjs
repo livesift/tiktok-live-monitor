@@ -34,7 +34,12 @@ if (packMetadata?.name !== packageJson.name || packMetadata?.version !== expecte
 }
 const revisionFromGit = run("git", ["rev-parse", "HEAD"]).trim();
 const revision = process.env.GITHUB_SHA?.trim() || revisionFromGit || "unknown";
-const suppliedTag = process.env.RELEASE_TAG?.trim() || process.env.GITHUB_REF_NAME?.trim();
+const explicitTag = process.env.RELEASE_TAG?.trim();
+const githubRef = process.env.GITHUB_REF?.trim();
+const tagFromRef = githubRef?.startsWith("refs/tags/")
+  ? githubRef.slice("refs/tags/".length)
+  : undefined;
+const suppliedTag = explicitTag || tagFromRef;
 if (suppliedTag !== undefined && suppliedTag !== `v${expectedVersion}`) {
   throw new Error(`release tag 必须为 v${expectedVersion}`);
 }

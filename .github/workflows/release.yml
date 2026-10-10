@@ -76,6 +76,8 @@ jobs:
         run: npm pack --dry-run --json
 
       - name: Generate package release manifest
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           mkdir -p artifacts/release
           npm run release:manifest -- --output artifacts/release/package-manifest.json
