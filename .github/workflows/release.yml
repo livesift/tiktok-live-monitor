@@ -161,6 +161,7 @@ jobs:
             VERSION=${{ needs.verify.outputs.version }}
             SOURCE=https://github.com/livesift/tiktok-live-monitor
             VCS_REF=${{ github.sha }}
+          provenance: false
           tags: ghcr.io/livesift/tiktok-live-monitor:${{ needs.verify.outputs.version }}
 
       - name: Log in to Docker Hub when configured
@@ -180,6 +181,7 @@ jobs:
             VERSION=${{ needs.verify.outputs.version }}
             SOURCE=https://github.com/livesift/tiktok-live-monitor
             VCS_REF=${{ github.sha }}
+          provenance: false
           tags: ${{ env.DOCKERHUB_USERNAME }}/tiktok-live-monitor:${{ needs.verify.outputs.version }}
 
       - name: Create GitHub Release
