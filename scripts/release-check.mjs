@@ -1,9 +1,11 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const expectedVersion = "0.1.0";
 const failures = [];
 const textCache = new Map();
 
@@ -53,11 +55,35 @@ function assert(condition, message) {
   }
 }
 
+function assertTextIncludes(relativePath, tokens, label = relativePath) {
+  const content = readText(relativePath);
+  if (content === undefined) {
+    return;
+  }
+  for (const token of tokens) {
+    assert(content.includes(token), `${label} 缺少发布事实: ${token}`);
+  }
+}
+
+const suppliedTag = process.env.RELEASE_TAG?.trim() || process.env.GITHUB_REF_NAME?.trim();
+if (suppliedTag !== undefined && suppliedTag !== "") {
+  const tagMatch = /^v(.+)$/.exec(suppliedTag);
+  assert(tagMatch !== null, `发布 tag 必须使用 v<version> 格式: ${suppliedTag}`);
+  if (tagMatch !== null) {
+    assert(tagMatch[1] === expectedVersion, `发布 tag 必须为 v${expectedVersion}: ${suppliedTag}`);
+  }
+}
+
 const packageJson = readJson("package.json");
+const packageLock = readJson("package-lock.json");
 if (packageJson === undefined) {
   fail("无法读取 package.json，停止发布检查。");
 } else {
-  assert(packageJson.version === "0.1.0-alpha.1", "package version 必须为 0.1.0-alpha.1");
+  assert(packageJson.version === expectedVersion, `package version 必须为 ${expectedVersion}`);
+  assert(
+    packageLock?.packages?.[""]?.version === expectedVersion,
+    `package-lock.json 根 metadata version 必须为 ${expectedVersion}`,
+  );
   assert(packageJson.license === "Apache-2.0", "package license 必须为 Apache-2.0");
   assert(packageJson.engines?.node === ">=20", "package engines.node 必须为 >=20");
   assert(
@@ -83,12 +109,210 @@ if (packageJson === undefined) {
     "THIRD_PARTY_NOTICES-en.md",
     "RELEASE_NOTES.md",
     "RELEASE_NOTES-en.md",
+    "CHANGELOG.md",
+    "CHANGELOG-en.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING-en.md",
+    "SECURITY.md",
+    "SECURITY-en.md",
     "LICENSE",
   ];
   assert(
     requiredFiles.every((file) => packageJson.files?.includes(file)),
     "package files 白名单必须覆盖所有可发布目录和文档",
   );
+
+  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  const packResult = spawnSync(npmCommand, ["pack", "--dry-run", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      npm_config_loglevel: "error",
+    },
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (packResult.error || packResult.status !== 0) {
+    fail(
+      `npm pack --dry-run 失败: ${packResult.error?.message ?? packResult.stderr?.trim() ?? `exit ${packResult.status}`}`,
+    );
+  } else {
+    try {
+      const packSummary = JSON.parse(packResult.stdout);
+      const packMetadata = Array.isArray(packSummary) ? packSummary[0] : packSummary;
+      const tarballFiles = Array.isArray(packMetadata?.files) ? packMetadata.files : [];
+      const exactTarballFiles = new Set([
+        "package.json",
+        "README.md",
+        "README-zh.md",
+        "DISCLAIMER.md",
+        "DISCLAIMER-en.md",
+        "THIRD_PARTY_NOTICES.md",
+        "THIRD_PARTY_NOTICES-en.md",
+        "RELEASE_NOTES.md",
+        "RELEASE_NOTES-en.md",
+        "CHANGELOG.md",
+        "CHANGELOG-en.md",
+        "CONTRIBUTING.md",
+        "CONTRIBUTING-en.md",
+        "SECURITY.md",
+        "SECURITY-en.md",
+        "LICENSE",
+      ]);
+      const allowedTarballRoots = new Set(["dist", "schemas", "examples", "docs"]);
+      assert(
+        packMetadata?.name === packageJson.name && packMetadata?.version === expectedVersion,
+        "npm tarball 的 package name/version 必须与目标 release 一致",
+      );
+      assert(tarballFiles.length > 0, "npm tarball 文件清单不能为空");
+      for (const entry of tarballFiles) {
+        const tarballPath = typeof entry?.path === "string" ? entry.path : "";
+        const [topLevel] = tarballPath.split("/");
+        assert(
+          exactTarballFiles.has(tarballPath) || allowedTarballRoots.has(topLevel),
+          `npm tarball 包含未允许文件: ${tarballPath || "<invalid path>"}`,
+        );
+        assert(
+          !/(^|\/)(?:node_modules|data|coverage)(?:\/|$)/.test(tarballPath) &&
+            !/(^|\/)(?:\.env(?:\.|$)|.*(?:credential|secret|token).*)/i.test(tarballPath),
+          `npm tarball 不得包含本地数据或凭证文件: ${tarballPath}`,
+        );
+      }
+      for (const requiredPath of [
+        "package.json",
+        "README.md",
+        "README-zh.md",
+        "CHANGELOG.md",
+        "CHANGELOG-en.md",
+        "CONTRIBUTING.md",
+        "CONTRIBUTING-en.md",
+        "SECURITY.md",
+        "SECURITY-en.md",
+        "LICENSE",
+      ]) {
+        assert(
+          tarballFiles.some((entry) => entry?.path === requiredPath),
+          `npm tarball 缺少必须文件: ${requiredPath}`,
+        );
+      }
+    } catch (error) {
+      fail(
+        `无法解析 npm pack --dry-run 输出: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+}
+
+const releaseDocuments = [
+  "README.md",
+  "README-zh.md",
+  "RELEASE_NOTES.md",
+  "RELEASE_NOTES-en.md",
+  "CHANGELOG.md",
+  "CHANGELOG-en.md",
+  "DISCLAIMER.md",
+  "DISCLAIMER-en.md",
+  "CONTRIBUTING.md",
+  "CONTRIBUTING-en.md",
+  "SECURITY.md",
+  "SECURITY-en.md",
+];
+for (const relativePath of releaseDocuments) {
+  const content = readText(relativePath);
+  if (content === undefined) {
+    continue;
+  }
+  assert(
+    !content.includes("0.1.0-alpha.1"),
+    `${relativePath} 不得继续引用 alpha 版本 0.1.0-alpha.1`,
+  );
+  assert(content.includes(expectedVersion), `${relativePath} 必须标明 ${expectedVersion}`);
+}
+
+assertTextIncludes("README.md", [
+  "one Creator",
+  "LiveEvent",
+  "JSONL",
+  "does not require a LiveSift account",
+  "LiveSift SaaS",
+  "Contributing",
+]);
+assertTextIncludes("README-zh.md", [
+  "一个 Creator",
+  "LiveEvent",
+  "JSONL",
+  "不要求 LiveSift 账号",
+  "LiveSift SaaS",
+  "贡献",
+]);
+assertTextIncludes("RELEASE_NOTES-en.md", [
+  "public TikTok LIVE",
+  "normalized events",
+  "without a LiveSift login",
+  "Private Gateway",
+]);
+assertTextIncludes("RELEASE_NOTES.md", [
+  "一场公开 TikTok LIVE",
+  "规范化事件",
+  "没有 LiveSift 登录",
+  "Private Gateway",
+]);
+assertTextIncludes("CHANGELOG-en.md", [
+  "one public TikTok LIVE creator",
+  "Normalized `LiveEvent`",
+  "without a LiveSift login",
+  "Private Gateway",
+]);
+assertTextIncludes("CHANGELOG.md", [
+  "单 Creator",
+  "标准化 `LiveEvent`",
+  "没有 LiveSift 登录",
+  "Private Gateway",
+]);
+assertTextIncludes("DISCLAIMER-en.md", [
+  "Public CLI",
+  "does not require a LiveSift account",
+  "Private Gateway",
+  "Apache-2.0 License",
+]);
+assertTextIncludes("DISCLAIMER.md", [
+  "Public CLI",
+  "不要求 LiveSift 账号",
+  "Private Gateway",
+  "Apache-2.0 License",
+]);
+assertTextIncludes("CONTRIBUTING.md", [
+  "Issue templates",
+  "npm run release:check",
+  "npm run docker:smoke",
+  "LiveSift 登录",
+  "Private Gateway",
+]);
+assertTextIncludes("CONTRIBUTING-en.md", [
+  "Issue templates",
+  "npm run release:check",
+  "npm run docker:smoke",
+  "LiveSift SaaS",
+  "Private Gateway",
+]);
+assertTextIncludes("SECURITY.md", ["GitHub Security Advisory", "Webhook Header", "公开"]);
+assertTextIncludes("SECURITY-en.md", ["GitHub Security Advisory", "Webhook headers", "public"]);
+
+const dockerfile = readText("Dockerfile");
+if (dockerfile !== undefined) {
+  for (const token of [
+    'ENTRYPOINT ["node", "/app/dist/cli/index.js"]',
+    "USER node",
+    "/app/dist/cli/index.js",
+    "FROM node:20",
+    "ARG VERSION=0.1.0",
+    "org.opencontainers.image.version",
+    "org.opencontainers.image.source",
+    "org.opencontainers.image.revision",
+    'RUN test "$VERSION" = "0.1.0"',
+  ]) {
+    assert(dockerfile.includes(token), `Dockerfile 缺少发布入口或运行时约束: ${token}`);
+  }
 }
 
 for (const relativePath of [

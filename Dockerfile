@@ -1,5 +1,11 @@
 FROM node:20-bookworm-slim AS builder
 
+ARG VERSION=0.1.0
+ARG SOURCE=https://github.com/livesift/tiktok-live-monitor
+ARG VCS_REF=unknown
+
+RUN test "$VERSION" = "0.1.0"
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -9,6 +15,16 @@ COPY . .
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runtime
+
+ARG VERSION=0.1.0
+ARG SOURCE=https://github.com/livesift/tiktok-live-monitor
+ARG VCS_REF=unknown
+
+RUN test "$VERSION" = "0.1.0"
+
+LABEL org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.source="$SOURCE" \
+      org.opencontainers.image.revision="$VCS_REF"
 
 ENV NODE_ENV=production
 WORKDIR /app

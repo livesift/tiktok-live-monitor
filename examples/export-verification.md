@@ -1,6 +1,6 @@
 # Public 导出与回放验收记录
 
-- Package：`tiktok-live-monitor 0.1.0-alpha.1`
+- Package：`tiktok-live-monitor 0.1.0`
 - 验收日期：2026-10-09
 - 宿主环境：Node.js `v26.10.0`、npm `11.19.1`、UID/GID `501:20`
 - Docker 环境：Docker Engine `29.4.0`（client/server）、OrbStack、Linux/arm64；production image 使用 `node:20-bookworm-slim`
@@ -26,5 +26,5 @@
 
 - Package replay stdout、package 归档 stdout、Docker replay stdout、Docker 归档 stdout 和两份归档 `events.jsonl` 均解析为 9 个事件，顺序及对象内容与 `examples/session.jsonl` 深度相等。
 - JSON object 的键顺序不是比较依据；对照按 JSONL 行顺序解析后比较事件对象。metadata 与 events 分开读取，没有混入 stdout JSONL。
-- 两份 `session.metadata.json` 均通过 `schemas/session-metadata.schema.json`，且 `source=replay`、`status=completed`、`packageVersion=0.1.0-alpha.1`、`eventCount=9`；Creator、session、开始/结束时间及八类 `eventCounts` 均与 fixture 相符，计数总和为 9。
+- 两份 `session.metadata.json` 均通过 `schemas/session-metadata.schema.json`，且 `source=replay`、`status=completed`、`packageVersion=0.1.0`、`eventCount=9`；Creator、session、开始/结束时间及八类 `eventCounts` 均与 fixture 相符，计数总和为 9。
 - Docker replay 在 `--network none` 下运行，并设置不可达的 `LIVESIFT_GATEWAY_URL`；命令成功，未依赖 Gateway 网络。

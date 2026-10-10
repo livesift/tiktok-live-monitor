@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security disclosure
+    url: https://github.com/livesift/tiktok-live-monitor/security/advisories/new
+    about: Do not create a public issue. Use a GitHub Security Advisory or read SECURITY-en.md.
+  - name: Contributing guide
+    url: https://github.com/livesift/tiktok-live-monitor/blob/main/CONTRIBUTING-en.md
+    about: Read the Public scope and validation commands before opening an issue or pull request.

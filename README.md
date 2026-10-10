@@ -4,7 +4,9 @@ An open-source TikTok LIVE tracker and real-time monitor for chat, gifts, viewer
 
 > Unofficial community project. It is not affiliated with TikTok or ByteDance, and it does not require a LiveSift account or Private Gateway.
 
-English | [简体中文](./README-zh.md) | [Disclaimer](./DISCLAIMER-en.md) | [Third-party notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha release notes](./RELEASE_NOTES-en.md)
+The `v0.1.0` Public release supports one Creator at a time, normalized `LiveEvent` records, and Console, JSONL, session-directory, or generic Webhook export. It does not depend on LiveSift SaaS.
+
+English | [简体中文](./README-zh.md) | [Disclaimer](./DISCLAIMER-en.md) | [Third-party notices](./THIRD_PARTY_NOTICES-en.md) | [v0.1.0 release notes](./RELEASE_NOTES-en.md) | [Changelog](./CHANGELOG-en.md) | [Contributing](./CONTRIBUTING-en.md) | [Security](./SECURITY-en.md) | [Issue templates](https://github.com/livesift/tiktok-live-monitor/tree/main/.github/ISSUE_TEMPLATE/)
 
 ## Requirements
 
@@ -26,7 +28,7 @@ npm run dev -- @username
 
 The username may include a leading `@`. The CLI reports connection state, live room information, and the session ID shared by lifecycle events; it shows a readable offline message when the creator is not live. A LiveSift login, `LIVESIFT_GATEWAY_URL`, or Private `/v1/events` endpoint is not required for this Public flow.
 
-When the alpha package is available from npm, the same CLI can be started from a clean environment with:
+Once the `0.1.0` package is available from npm, the same CLI can be started from a clean environment with:
 
 ```bash
 npx --yes tiktok-live-monitor --help
@@ -126,7 +128,7 @@ npm run demo:terminal:preview
 npm run demo:terminal:record
 ```
 
-Playback takes about 18 seconds. The static [text preview](./examples/terminal-demo.txt) is portable to files and non-interactive terminals; the [asciinema v2 capture](./examples/terminal-demo.cast) can be played with `asciinema play examples/terminal-demo.cast`. The record command regenerates both files from [`examples/session.jsonl`](./examples/session.jsonl). These checked-in assets are versioned for package `0.1.0-alpha.1` and use only synthetic fixture identities.
+Playback takes about 18 seconds. The static [text preview](./examples/terminal-demo.txt) is portable to files and non-interactive terminals; the [asciinema v2 capture](./examples/terminal-demo.cast) can be played with `asciinema play examples/terminal-demo.cast`. The record command regenerates both files from [`examples/session.jsonl`](./examples/session.jsonl). These checked-in assets are versioned for package `0.1.0` and use only synthetic fixture identities.
 
 The fixture replay and CLI sink acceptance results are recorded in [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md).
 

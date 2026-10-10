@@ -1,0 +1,186 @@
+name: Public OSS Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-oss-release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  verify:
+    name: Verify release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Resolve and validate release version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_TAG" in
+            v*) version="${RELEASE_TAG#v}" ;;
+            *) echo "Release tags must use v<version>: $RELEASE_TAG" >&2; exit 1 ;;
+          esac
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$version" != "$package_version" ]]; then
+            echo "Tag $RELEASE_TAG does not match package.json version $package_version" >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+      - name: Inspect package archive
+        run: npm pack --dry-run --json
+
+      - name: Generate package release manifest
+        run: |
+          mkdir -p artifacts/release
+          npm run release:manifest -- --output artifacts/release/package-manifest.json
+
+      - name: Upload package release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiktok-live-monitor-${{ steps.version.outputs.version }}-manifest
+          path: artifacts/release/package-manifest.json
+          if-no-files-found: error
+
+      - name: Run release gate
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: npm run release:check
+
+      - name: Run Docker offline smoke
+        run: npm run docker:smoke
+
+  publish:
+    name: Publish package and images
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install production package dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build package for npm publication
+        run: npm run build
+
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push GHCR image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            VERSION=${{ needs.verify.outputs.version }}
+            SOURCE=https://github.com/livesift/tiktok-live-monitor
+            VCS_REF=${{ github.sha }}
+          tags: ghcr.io/livesift/tiktok-live-monitor:${{ needs.verify.outputs.version }}
+
+      - name: Log in to Docker Hub when configured
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker Hub image when configured
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            VERSION=${{ needs.verify.outputs.version }}
+            SOURCE=https://github.com/livesift/tiktok-live-monitor
+            VCS_REF=${{ github.sha }}
+          tags: ${{ env.DOCKERHUB_USERNAME }}/tiktok-live-monitor:${{ needs.verify.outputs.version }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cat RELEASE_NOTES.md > "$RUNNER_TEMP/release-notes.md"
+          printf '\n\n---\n\n' >> "$RUNNER_TEMP/release-notes.md"
+          cat RELEASE_NOTES-en.md >> "$RUNNER_TEMP/release-notes.md"
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Promote GHCR latest after release creation
+        run: docker buildx imagetools create --tag ghcr.io/livesift/tiktok-live-monitor:latest ghcr.io/livesift/tiktok-live-monitor:${{ needs.verify.outputs.version }}
+
+      - name: Promote Docker Hub latest when configured
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
+        run: docker buildx imagetools create --tag ${{ env.DOCKERHUB_USERNAME }}/tiktok-live-monitor:latest ${{ env.DOCKERHUB_USERNAME }}/tiktok-live-monitor:${{ needs.verify.outputs.version }}

@@ -6,8 +6,10 @@ on:
       - main
     paths:
       - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
       - ".gitattributes"
       - ".dockerignore"
+      - ".gitignore"
       - "Dockerfile"
       - "src/**"
       - "test/**"
@@ -23,15 +25,24 @@ on:
       - "eslint.config.mjs"
       - "README.md"
       - "README-zh.md"
+      - "CONTRIBUTING.md"
+      - "CONTRIBUTING-en.md"
+      - "SECURITY.md"
+      - "SECURITY-en.md"
+      - "CHANGELOG.md"
+      - "CHANGELOG-en.md"
       - "DISCLAIMER.md"
       - "THIRD_PARTY_NOTICES.md"
       - "RELEASE_NOTES.md"
+      - ".github/ISSUE_TEMPLATE/**"
       - "LICENSE"
   pull_request:
     paths:
       - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
       - ".gitattributes"
       - ".dockerignore"
+      - ".gitignore"
       - "Dockerfile"
       - "src/**"
       - "test/**"
@@ -47,9 +58,16 @@ on:
       - "eslint.config.mjs"
       - "README.md"
       - "README-zh.md"
+      - "CONTRIBUTING.md"
+      - "CONTRIBUTING-en.md"
+      - "SECURITY.md"
+      - "SECURITY-en.md"
+      - "CHANGELOG.md"
+      - "CHANGELOG-en.md"
       - "DISCLAIMER.md"
       - "THIRD_PARTY_NOTICES.md"
       - "RELEASE_NOTES.md"
+      - ".github/ISSUE_TEMPLATE/**"
       - "LICENSE"
 
 permissions:
@@ -99,6 +117,9 @@ jobs:
 
       - name: Inspect package archive
         run: npm pack --dry-run --json
+
+      - name: Generate package release manifest
+        run: npm run release:manifest
 
       - name: Run release gate
         run: npm run release:check

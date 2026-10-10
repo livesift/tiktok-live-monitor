@@ -9,6 +9,13 @@ import Ajv from "ajv";
 
 const projectRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
+const imageSource = "https://github.com/livesift/tiktok-live-monitor";
+const gitRevisionResult = spawnSync("git", ["rev-parse", "HEAD"], {
+  cwd: projectRoot,
+  encoding: "utf8",
+});
+const imageRevision =
+  process.env.GITHUB_SHA?.trim() || gitRevisionResult.stdout?.trim() || "unknown";
 const fixtureText = await readFile(path.join(projectRoot, "examples/session.jsonl"), "utf8");
 const fixture = fixtureText
   .trimEnd()
@@ -75,8 +82,32 @@ function assertEvents(actual, label) {
 }
 
 async function main() {
-  docker(["build", "--tag", imageTag, "."], "Docker image build");
+  docker(
+    [
+      "build",
+      "--build-arg",
+      `VERSION=${packageJson.version}`,
+      "--build-arg",
+      `SOURCE=${imageSource}`,
+      "--build-arg",
+      `VCS_REF=${imageRevision}`,
+      "--tag",
+      imageTag,
+      ".",
+    ],
+    "Docker image build",
+  );
   imageBuilt = true;
+
+  const labels = JSON.parse(
+    docker(
+      ["image", "inspect", "--format", "{{json .Config.Labels}}", imageTag],
+      "Inspect OCI labels",
+    ).stdout.trim(),
+  );
+  assert.equal(labels["org.opencontainers.image.version"], packageJson.version);
+  assert.equal(labels["org.opencontainers.image.source"], imageSource);
+  assert.equal(labels["org.opencontainers.image.revision"], imageRevision);
 
   const imageUser = docker(
     ["image", "inspect", "--format", "{{.Config.User}}", imageTag],
@@ -103,6 +134,16 @@ async function main() {
   assert.match(help.stdout, /--output-dir <directory>/);
   assert.match(help.stdout, /--replay <path>/);
 
+  const packageHelp = spawnSync(
+    process.execPath,
+    [path.join(projectRoot, "dist/cli/index.js"), "--help"],
+    { cwd: projectRoot, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
+  );
+  if (packageHelp.error || packageHelp.status !== 0) {
+    throw new Error(`Package CLI help failed: ${packageHelp.error?.message ?? packageHelp.stderr}`);
+  }
+  assert.equal(packageHelp.stdout, help.stdout, "Docker and package CLI help must match.");
+
   const replay = docker(
     [
       "run",
@@ -119,6 +160,23 @@ async function main() {
     "Offline JSON replay",
   );
   assertEvents(parseJsonl(replay.stdout, "Offline JSON replay"), "Offline JSON replay");
+
+  const packageReplay = spawnSync(
+    process.execPath,
+    [
+      path.join(projectRoot, "dist/cli/index.js"),
+      "--replay",
+      path.join(projectRoot, "examples/session.jsonl"),
+      "--json",
+    ],
+    { cwd: projectRoot, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  );
+  if (packageReplay.error || packageReplay.status !== 0) {
+    throw new Error(
+      `Package CLI replay failed: ${packageReplay.error?.message ?? packageReplay.stderr}`,
+    );
+  }
+  assertEvents(parseJsonl(packageReplay.stdout, "Package JSON replay"), "Package JSON replay");
 
   writableDirectory = await mkdtemp(path.join(tmpdir(), "livesift-docker-smoke-"));
   await chmod(writableDirectory, 0o777);

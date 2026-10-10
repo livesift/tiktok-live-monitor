@@ -1,0 +1,59 @@
+name: Bug Report
+description: Report a reproducible issue with the Public CLI, exports, or Docker behavior
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, confirm that this is not a security vulnerability. Use the private disclosure process in [SECURITY-en.md](../../SECURITY-en.md) for security issues.
+        Do not include tokens, Cookies, Webhook headers, real accounts, personal data, or unredacted logs.
+  - type: input
+    id: version
+    attributes:
+      label: Package or commit version
+      description: For example, `0.1.0`, a Git tag, or a commit SHA.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: provider
+      options:
+        - TikTok-Live-Connector
+        - fixture/replay
+        - Docker runtime
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide Node.js/npm, Docker, operating system, and architecture details. Do not include credentials.
+      placeholder: Node.js 20, npm 10, macOS arm64
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction commands and steps
+      description: Provide the smallest reproducible command and input fixture. Remove accounts, tokens, Cookies, and personal data.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual results
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: Include only logs with credentials, Webhook headers, real accounts, and personal data removed.
+    validations:
+      required: false

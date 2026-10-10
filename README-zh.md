@@ -4,7 +4,9 @@
 
 > 非官方社区项目，与 TikTok 或 ByteDance 无隶属关系；Public CLI 不要求 LiveSift 账号或 Private Gateway。
 
-[English](./README.md) | 简体中文 | [免责声明](./DISCLAIMER.md) | [English Disclaimer](./DISCLAIMER-en.md) | [第三方说明](./THIRD_PARTY_NOTICES.md) | [English Third-party Notices](./THIRD_PARTY_NOTICES-en.md) | [Alpha 发布说明](./RELEASE_NOTES.md) | [English Release Notes](./RELEASE_NOTES-en.md)
+`v0.1.0` Public 发行支持一次采集一个 Creator，输出标准化 `LiveEvent`，并支持 Console、JSONL、session 目录和通用 Webhook 导出；不依赖 LiveSift SaaS。
+
+[English](./README.md) | 简体中文 | [免责声明](./DISCLAIMER.md) | [English Disclaimer](./DISCLAIMER-en.md) | [第三方说明](./THIRD_PARTY_NOTICES.md) | [English Third-party Notices](./THIRD_PARTY_NOTICES-en.md) | [v0.1.0 发布说明](./RELEASE_NOTES.md) | [English Release Notes](./RELEASE_NOTES-en.md) | [变更记录](./CHANGELOG.md) | [贡献指南](./CONTRIBUTING.md) | [English Contributing](./CONTRIBUTING-en.md) | [安全披露](./SECURITY.md) | [English Security](./SECURITY-en.md) | [Issue 模板](https://github.com/livesift/tiktok-live-monitor/tree/main/.github/ISSUE_TEMPLATE/)
 
 ## 环境要求
 
@@ -26,7 +28,7 @@ npm run dev -- @username
 
 用户名可以带一个前导 `@`。CLI 会输出连接状态、直播间信息和由 lifecycle 事件共享的 session ID；主播未开播时会输出可读的离线提示。Public 流程不需要 LiveSift 登录、`LIVESIFT_GATEWAY_URL` 或 Private `/v1/events` endpoint。
 
-Alpha package 发布到 npm 后，可以在全新环境直接运行相同的 CLI：
+`0.1.0` package 发布到 npm 后，可以在全新环境直接运行相同的 CLI：
 
 ```bash
 npx --yes tiktok-live-monitor --help
@@ -126,7 +128,7 @@ npm run demo:terminal:preview
 npm run demo:terminal:record
 ```
 
-回放约 18 秒。[静态文本预览](./examples/terminal-demo.txt) 可在文件或非交互式终端中查看；[asciinema v2 capture](./examples/terminal-demo.cast) 可用 `asciinema play examples/terminal-demo.cast` 播放。record 命令会根据 [`examples/session.jsonl`](./examples/session.jsonl) 重新生成这两个文件。当前 capture 与文本预览对应 package `0.1.0-alpha.1`，只使用合成 fixture 身份。
+回放约 18 秒。[静态文本预览](./examples/terminal-demo.txt) 可在文件或非交互式终端中查看；[asciinema v2 capture](./examples/terminal-demo.cast) 可用 `asciinema play examples/terminal-demo.cast` 播放。record 命令会根据 [`examples/session.jsonl`](./examples/session.jsonl) 重新生成这两个文件。当前 capture 与文本预览对应 package `0.1.0`，只使用合成 fixture 身份。
 
 Fixture 回放和 CLI sink 的验收结果记录在 [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md)。
 

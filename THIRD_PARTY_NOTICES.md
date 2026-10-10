@@ -2,7 +2,7 @@
 
 English version: [THIRD_PARTY_NOTICES-en.md](./THIRD_PARTY_NOTICES-en.md)
 
-本文件记录 Public alpha 运行时的重要第三方依赖和服务边界。它不改变项目自身的 Apache-2.0 License，也不代表任何第三方为本项目提供担保。
+本文件记录 Public v0.1.0 运行时的重要第三方依赖和服务边界。它不改变项目自身的 Apache-2.0 License，也不代表任何第三方为本项目提供担保。
 
 ## TikTok-Live-Connector
 

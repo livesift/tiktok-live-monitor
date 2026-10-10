@@ -1,13 +1,13 @@
-# v0.1.0-alpha.1
+# v0.1.0
 
-This Public OSS alpha release lets users connect to a public TikTok LIVE without a LiveSift login and send the same normalized events to the terminal, a JSONL file, or any HTTP/HTTPS Webhook endpoint.
+This is the first Public OSS release. It lets users connect to a public TikTok LIVE without a LiveSift login and send the same normalized events to the terminal, JSONL files, session directories, or any HTTP/HTTPS Webhook endpoint.
 
 ## Included
 
-- Node.js 20+ TypeScript CLI with the `tiktok-live-monitor` binary
+- Node.js 20+ TypeScript CLI with the `tiktok-live-monitor` binary and `0.1.0` package
 - Human-readable Console output, JSONL stdout through `--json`, and file output through `--output <path>`
 - Normalized `LiveEvent` envelopes, session lifecycle events, and deterministic JSONL/schema fixtures
-- Stateful terminal renderer, one-time session summary, and a network-free terminal demo
+- Stateful terminal renderer, one-time session summary, session-directory archives, and a network-free terminal demo
 - Generic Webhook `POST`, repeatable custom headers, up to three attempts per event, and exponential backoff
 - Best-effort Webhook failures: diagnostics are reported without stopping local output or subsequent LIVE events
 - Apache-2.0 project license with separate disclaimer and third-party notices
@@ -30,13 +30,13 @@ npm run demo:terminal:preview
 npm run demo:terminal:record
 ```
 
-Playback takes about 18 seconds and consumes only the synthetic `examples/session.jsonl` fixture. It does not connect to TikTok, a Webhook, LiveSift, or Private Gateway, and requires no Web UI or LiveSift account. The [text preview](./examples/terminal-demo.txt) and [asciinema v2 capture](./examples/terminal-demo.cast) correspond to package `0.1.0-alpha.1`; play the capture with `asciinema play examples/terminal-demo.cast`. The demo verifies the renderer, not the availability of third-party providers such as TikTok-Live-Connector or Euler Stream. Current viewer follows the latest valid `occurredAt` timestamp, and terminal summaries are not written to JSONL or Webhook payloads.
+Playback takes about 18 seconds and consumes only the synthetic `examples/session.jsonl` fixture. It does not connect to TikTok, a Webhook, LiveSift, or Private Gateway, and requires no Web UI or LiveSift account. The [text preview](./examples/terminal-demo.txt) and [asciinema v2 capture](./examples/terminal-demo.cast) correspond to package `0.1.0`; play the capture with `asciinema play examples/terminal-demo.cast`. The demo verifies the renderer, not the availability of third-party providers such as TikTok-Live-Connector or Euler Stream. Current viewer follows the latest valid `occurredAt` timestamp, and terminal summaries are not written to JSONL or Webhook payloads.
 
 Fixture replay and CLI sink acceptance results are recorded in [`examples/terminal-demo-verification.md`](./examples/terminal-demo-verification.md).
 
 ## Verification Before Tagging
 
-Before creating the `v0.1.0-alpha.1` tag, the publisher should complete the following in a Node.js 20+ environment:
+Before creating the `v0.1.0` tag, the publisher should complete the following in a Node.js 20+ environment:
 
 ```bash
 npm ci
@@ -46,11 +46,12 @@ npm run typecheck
 npm test
 npm run build
 npm pack --dry-run --json
+npm run release:manifest -- --output artifacts/release/package-manifest.json
 npm run release:check
 ```
 
-Also run the JSONL, schema, and Webhook fixture checks in [examples/README-en.md](./examples/README-en.md), and confirm that the README, [Disclaimer](./DISCLAIMER-en.md), [Third-party Notices](./THIRD_PARTY_NOTICES-en.md), and package metadata are consistent.
+Also run the JSONL, schema, and Webhook fixture checks in [examples/README-en.md](./examples/README-en.md), and confirm that the README, [Disclaimer](./DISCLAIMER-en.md), [Third-party Notices](./THIRD_PARTY_NOTICES-en.md), and package metadata are consistent. Record the package summary, Docker labels/digest, source commit, and Release notes in the documentation repository's `doc/ops/release-checklist-v0.1.0.md`, following `doc/ops/public-oss-ghcr-docker-release.md`.
 
 ## Release Status
 
-This file records release boundaries and verification entry points. It does not automatically publish an npm package, Docker image, or GitHub Release. A maintainer must review provider versions, third-party terms, the license inventory, and registry state before distribution.
+This file records release boundaries and verification entry points. A maintainer must review provider versions, third-party terms, the license inventory, and registry state before distribution.

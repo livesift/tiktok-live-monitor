@@ -1,7 +1,7 @@
 {
   "metadataSchemaVersion": 1,
   "eventSchemaId": "urn:livesift:schema:live-event:v1",
-  "packageVersion": "0.1.0-alpha.1",
+  "packageVersion": "0.1.0",
   "source": "live",
   "platform": "tiktok",
   "session": { "id": "session-in-progress", "roomId": "room-1" },

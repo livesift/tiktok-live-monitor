@@ -1,6 +1,6 @@
 # Terminal Demo 验收记录
 
-- Package：`tiktok-live-monitor 0.1.0-alpha.1`
+- Package：`tiktok-live-monitor 0.1.0`
 - 验收日期：2026-10-07
 - 环境：Node.js `v26.10.0`、npm `11.19.1`
 - 输入：`examples/session.jsonl` 中的 9 条合成 `LiveEvent`，单一 session ID；不连接 TikTok、Webhook 网络服务、LiveSift 或 Private Gateway。

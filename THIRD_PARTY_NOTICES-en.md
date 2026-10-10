@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This document records important third-party runtime dependencies and service boundaries for the Public alpha. It does not change the project's Apache-2.0 License and does not represent a warranty from any third party.
+This document records important third-party runtime dependencies and service boundaries for Public v0.1.0. It does not change the project's Apache-2.0 License and does not represent a warranty from any third party.
 
 ## TikTok-Live-Connector
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { Command, CommanderError } from "commander";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { MonitorError, normalizeMonitorError } from "../core/errors.js";
 import { installSignalHandlers, MonitorController, type SignalSource } from "../core/monitor.js";
 import type { LiveProvider } from "../core/provider.js";
@@ -616,7 +616,8 @@ export async function runCli(
 }
 
 const isMainModule =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === realpathSync(resolve(process.argv[1]));
 
 if (isMainModule) {
   void runCli().then((code) => {

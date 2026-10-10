@@ -45,7 +45,7 @@ npm run demo:terminal:preview
 npm run demo:terminal:record
 ```
 
-Playback uses only `session.jsonl`; it does not access the network, a real LIVE, a LiveSift account, or Private Gateway. The capture records package version `0.1.0-alpha.1`.
+Playback uses only `session.jsonl`; it does not access the network, a real LIVE, a LiveSift account, or Private Gateway. The capture records package version `0.1.0`.
 
 The fixture replay stdout/stderr, JSONL, Webhook mock, and duration evidence is recorded in [`terminal-demo-verification.md`](./terminal-demo-verification.md).
 

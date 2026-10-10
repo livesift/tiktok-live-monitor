@@ -47,7 +47,7 @@ npm run demo:terminal:preview
 npm run demo:terminal:record
 ```
 
-回放仅使用 `session.jsonl`，不访问网络、真实直播、LiveSift 账号或 Private Gateway。capture 的 package 版本记录为 `0.1.0-alpha.1`。
+回放仅使用 `session.jsonl`，不访问网络、真实直播、LiveSift 账号或 Private Gateway。capture 的 package 版本记录为 `0.1.0`。
 
 fixture 回放 stdout/stderr、JSONL、Webhook mock 和时长验收记录见 [`terminal-demo-verification.md`](./terminal-demo-verification.md)。
 

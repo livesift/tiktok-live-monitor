@@ -1,0 +1,47 @@
+name: Feature Request
+description: Suggest an improvement consistent with the Public single-Creator and standard export scope
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Public OSS currently focuses on single-Creator monitoring, normalized `LiveEvent` records, and exports.
+        Do not include tokens, Cookies, Webhook headers, real accounts, or personal data in an issue.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the current limitation, use case, and affected Public users.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the expected CLI, event, export, or documentation behavior and any compatibility impact.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: If the request depends on the environment, provide Node.js/npm, Docker, operating system, and architecture details.
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope confirmation
+      options:
+        - label: I confirm that this suggestion does not require a LiveSift login, Private Gateway, or sensitive data.
+          required: true
+        - label: I will update the schema, fixtures, documentation, or changelog when behavior changes.
+          required: true
