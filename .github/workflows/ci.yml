@@ -143,5 +143,8 @@ jobs:
       - name: Install smoke-script dependencies
         run: npm ci
 
+      - name: Build package for host CLI verification
+        run: npm run build
+
       - name: Build and verify production Docker image
         run: npm run docker:smoke
