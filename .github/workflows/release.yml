@@ -120,7 +120,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
 
       - name: Install production package dependencies
         run: npm ci --ignore-scripts
@@ -129,8 +128,6 @@ jobs:
         run: npm run build
 
       - name: Publish npm package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
 
       - name: Log in to GHCR
