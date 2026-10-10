@@ -127,7 +127,22 @@ jobs:
       - name: Build package for npm publication
         run: npm run build
 
+      - name: Check whether npm package version already exists
+        id: npm-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          if npm view "${package_name}@${package_version}" version --json >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${package_name}@${package_version} already exists on npm; skipping publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish npm package
+        if: steps.npm-version.outputs.exists != 'true'
         run: npm publish --provenance --access public
 
       - name: Log in to GHCR
